@@ -1,0 +1,398 @@
+' Gambas class file
+
+'== == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == =
+'Disk format
+'== == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == =
+'MMB consists Of 32 sectors(8 Kb) Of data, split into 16 byte blocks.
+'The first block Of 8 chars Is Is In the format
+' aa bb cc dd AA BB CC DD
+'where AAaa BBbb CCcc DDdd are the images inserted at boot time.Default
+'Is 00 01 02 03 00 00 00 00
+'"*ONBOOT 3 500" would make dd = F4 DD = 01(&01F4 = 500)
+
+'The Next 8 bytes(completing the 16 byte block)are unused And are
+'typically all zero.
+
+'After that comes 511 blocks which consist Of
+'  DISKNAME(12 chars)
+'  unused(3 chars)
+'  STATUS(1 char)0 == > locked(readonly); 15 = > Readwrite; 240 = > Unformatted
+'                 255 = > invalid
+
+'In theory the DISKNAME should Match the disk TITLE In Each place, but it
+'can get out Of sync. * RECAT On the MMC Utils ROM reads the title From
+'Each SSD And updates this name.
+
+'Then Each SSD Is A chunk Of 200 Kb data following.So disk 'n' starts
+'at 'n'*204800+8192.  That's all there is to an MMB.
+
+'An SSD Is A simple 200 K(80 track 10 sector)image.Since it 's literally
+'an image it follows the standard Acorn DFS layout.
+'This just cover the details for the disk title
+
+'Sector 0 Is Split into 32 * 8 byte records.Record 0 Is The first 8
+'characters Of the disk title.Records 1 - > 31 have filename(7 chars)
+'And directory(1 char).If the high bit Of the directory Is Set Then
+'the file Is Locked.
+
+'Sector 1 Is Similarly split into 32 * 8 bytes but a lot more complicated.
+'Bytes 0 - > 3 are the Last 4 characters Of the disk title.The title Is NULL
+'  terminated If it 's shorter than 12 chars.
+'Byte 4 Is (BCD)the "write cycle".In theory every Write should update
+'  that, but really...who cares?
+'Byte 5 Is "number of files" * 8
+'Byte 6: bits 4 And 5 encode the "*OPT 4" value
+'        bits 0 And 1 are the high bits For "number of sectors"
+'Byte 7 Is The low 8 bits Of "number of sectors"
+
+Public hTextBox As New TextBox[511]
+Public hPictureBox As New PictureBox[511]
+Public BootData As New Byte[16]
+Public IndexData As New Byte[511, 16]
+Public CurrentFile As String 'Current MMB file
+Public TMPFile As String     'Temporary working file
+Public CurrentSSD As Integer 'Current selected SSD image
+
+Public Sub FileOpen_Click()
+  
+  Dim FStream As Stream
+  Dim count As Integer
+  Dim count1 As Integer
+  
+  Dialog.Title = "Choose a file"
+  Dialog.Filter = ["*.MMB", "BBC File Archive"]
+  Dialog.Path = "."
+  If Dialog.OpenFile() Then
+    Return ' User pressed Cancel -
+  Endif
+  If UCase(Right$(Dialog.Path, 3)) <> "MMB" Then
+    Return 'Wrong file extension
+  Endif
+  CurrentFile = Dialog.Path
+  FStream = Open CurrentFile For Input
+  'TODO Need to verify valid file format
+  
+  'Read boot data
+  For count = 0 To 15
+    bootdata[count] = Read #FStream As Byte
+  Next
+  
+  DisplayBootDisks()
+  
+  'Read Disk index
+  For count = 0 To 510
+    For count1 = 0 To 15
+      IndexData[count, count1] = Read #FStream As Byte
+    Next
+    
+    DisplayIndex(count)
+  Next
+  
+  Close #FStream
+  Kill TMPFile
+  Copy CurrentFile To TMPFile
+  
+End
+
+Public Sub Form_Open()
+  
+  Dim hPanel As Panel
+  Dim hLabel As Label
+  Dim count As Integer
+  Dim count1 As Integer
+  Dim BoxCount As Integer
+  Dim EndCount As Integer
+  
+  'Default BootData
+  BootData[0] = 0
+  BootData[1] = 1
+  BootData[2] = 2
+  BootData[3] = 3
+  
+  CreateTMPFile()
+  
+  EndCount = 63
+  
+  For count = 0 To 7
+    TabStrip1.Index = count
+    TabStrip1.Text = Str$(count * 64) & "-" & Str$((count + 1) * 64 - 1)
+    TabStrip1.Arrangement = 4
+    If count = 7 Then 
+      EndCount = 62 'Only 511 disks, not 512
+      TabStrip1.Text = "448-510"
+    Endif
+    
+    For count1 = 0 To EndCount
+      BoxCount = (count * 64) + count1
+      IndexData[Boxcount, 15] = 240 'Disk flag Unformatted
+      hPanel = New Panel(TabStrip1)
+      With hPanel
+        .Width = 165
+        .height = 20
+        .Arrangement = 4
+      End With   
+      
+      hLabel = New Label(hPanel)
+      With hLabel
+        .Width = 23
+        .height = 20
+        .Text = Str$(BoxCount)
+        
+      End With
+      
+      hPictureBox[BoxCount] = New PictureBox(hPanel) As "Lock"
+      With hPictureBox[BoxCount]
+        .Width = 16
+        .Picture = Picture["icon:/16/floppy"]
+        .height = 16
+        .Alignment = 3
+        .Tag = Str$(BoxCount)
+      End With
+      
+      hTextBox[BoxCount] = New TextBox(hPanel) As "TextB" 
+      With hTextBox[BoxCount]
+        .Width = 120
+        .height = 20
+        .Enabled = False
+        .MaxLength = 12
+        .PopupMenu = "MenuEdit"
+        .tag = Str$(BoxCount)
+      End With
+      
+    Next
+  Next
+  
+  TabStrip1.Index = 0
+  DisplayBootDisks()
+  
+End
+
+Public Sub DisplayIndex(Index As Integer)
+  
+  FMain.hTextBox[Index].Text = Trim$(IndexToString(Index))
+  Select Case IndexData[Index, 15] 'Disk flags 
+    Case 0 'Read Only
+      FMain.hTextBox[Index].Enabled = True
+      'FMain.hTextBox[Index].Background = &HFFFFFF
+      FMain.hPictureBox[Index].Picture = Picture["icon:/16/lock"]
+    Case 15 'Read/Write
+      FMain.hTextBox[Index].Enabled = True
+      'FMain.hTextBox[Index].Background = &HFFFFFF
+      FMain.hPictureBox[Index].Picture = Picture["icon:/16/unlock"]
+    Case 240 'Unformatted
+      FMain.hTextBox[Index].Enabled = False
+      FMain.hPictureBox[Index].Picture = Picture["icon:/16/floppy"]
+  End Select
+  
+End
+
+Public Sub DisplayBootDisks()
+  
+  FMain.SpinBox1.Value = bootdata[4] * 256 + bootdata[0]
+  FMain.SpinBox2.Value = bootdata[5] * 256 + bootdata[1]
+  FMain.SpinBox3.Value = bootdata[6] * 256 + bootdata[2]
+  FMain.SpinBox4.Value = bootdata[7] * 256 + bootdata[3]
+  
+End
+
+Public Function IndexToString(Index As Integer) As String
+  
+  Dim count As Integer
+  Dim OutputString As String
+  
+  For count = 0 To 11 'First 12 bytes are Index (disc) name
+    OutputString = OutputString & Chr$(IndexData[Index, count])
+  Next
+  Return OutputString
+  
+End  
+
+Public Sub TextB_MouseDown()
+  
+  FMain.hTextBox[CurrentSSD].Parent.Background = FMain.TabStrip1.Background
+  CurrentSSD = Val(Last.Tag)
+  FMain.hTextBox[CurrentSSD].Parent.Background = &H9AD297  '&HDAF6D8
+  
+End
+
+Public Sub Lock_MouseDown()
+  
+  If IndexData[Last.Tag, 15] = 0 Then
+    IndexData[Last.Tag, 15] = 15
+  Else If IndexData[Last.Tag, 15] = 15 Then
+    IndexData[Last.Tag, 15] = 0
+  Endif
+  DisplayIndex(Last.Tag)
+  
+End
+
+Public Sub SSDImport_Click()
+  'This just opens the SSD and reads the disk title and saves the file path to an array
+  'The actual import is done when saving the file
+  
+  Dim FSSDStream As Stream
+  Dim FMMBStream As Stream
+  Dim FSSDLength As Integer
+  Dim SSDPosition As Integer
+  Dim count As Integer
+  'Dim count1 As Integer
+  Dim DiskTitle As New Byte[12]
+  
+  Dialog.Title = "Choose a file"
+  Dialog.Filter = ["*.SSD", "BBC Single Sided Disk"]
+  Dialog.Path = "."
+  If Dialog.OpenFile() Then
+    Return ' User pressed Cancel -
+  Endif
+  If UCase(Right$(Dialog.Path, 3)) <> "SSD" Then
+    Return 'Wrong file extension
+  Endif
+  
+  FSSDStream = Open Dialog.Path For Read
+  'TODO Need to verify valid file format
+  For count = 0 To 7 'Read First 8 bytes of disk title
+    DiskTitle[count] = Read #FSSDStream As Byte
+  Next
+  Seek #FSSDStream, &H100
+  For count = 8 To 11 'Read Last 4 bytes of disk title
+    DiskTitle[count] = Read #FSSDStream As Byte
+  Next
+  
+  Close #FSSDStream
+  'TODO Add confirmation dialog
+  If Message.Question("Are you sure you want to import to Disk " & Str$(CurrentSSD) & "?", "OK", "Cancel") = 2 Then Return
+  
+  For count = 0 To 11 ' Copy disk title to current index
+    If DiskTitle[count] < 32 Then
+      DiskTitle[count] = 0
+    Endif
+    IndexData[CurrentSSD, count] = DiskTitle[count]
+  Next
+  IndexData[CurrentSSD, 15] = 0 'Set to Read Only
+  DisplayIndex(CurrentSSD)
+  'Write Boot & Index 
+  WriteIndexToTMP()
+  'Copy SSD file to temp MMB file
+  FSSDStream = Open Dialog.path For Read
+  FMMBStream = Open TMPFile For Write
+  FSSDLength = Lof(FSSDStream)
+  SSDPosition = (CurrentSSD * 204800) + 8192
+  
+  'Write SSD
+  Seek #FMMBStream, SSDPosition
+  For count = 0 To FSSDLength - 1
+    Write #FMMBStream, Read #FSSDStream As Byte As Byte   
+  Next
+  Close #FMMBStream
+  Close #FSSDStream
+  
+End
+
+Public Sub FileSave_Click()
+  
+  If Message.Question("Are you sure you want to save?", "OK", "Cancel") = 2 Then Return
+  If CurrentFile = "" Then
+    FileSaveAs_Click()
+  End If
+  If CurrentFile = "" Then Return
+  WriteIndexToTMP()
+  Try Kill CurrentFile
+  If Error Then
+    Message.Error("Cannot Write to File.")
+    Return
+  Endif
+  Copy TMPFile To CurrentFile
+  'Print "Saved"
+  
+End
+
+Public Sub CreateTMPFile()
+  
+  Dim hFile As Stream
+  'Dim count As Integer
+  TMPFile = Temp$()
+  'Print TMPFile
+  hFile = Open TMPFile For Create
+  Seek #hFile, Lof(hFile) + 8192
+  Write #hFile, 0 As Byte
+  Close #hFile
+  WriteIndexToTMP()
+  
+End
+
+Public Sub FileSaveAs_Click()
+  
+  Dialog.Filter = ["*.MMB", "BBC File Archive"]
+  Dialog.Path = "."
+  If Dialog.SaveFile() Then
+    Return ' User pressed Cancel -
+  Endif
+  CurrentFile = Dialog.path
+  Copy TMPFile To CurrentFile
+  
+End
+
+Public Sub WriteIndexToTMP()
+  
+  Dim FMMBStream As Stream
+  Dim count As Integer
+  Dim count1 As Integer
+  
+  FMMBStream = Open TMPFile For Write
+  'Write BootData
+  For count = 0 To 15
+    Write #FMMBStream, BootData[count] As Byte
+  Next
+  'Write Index
+  For count = 0 To 510
+    For count1 = 0 To 15
+      Write #FMMBStream, IndexData[count, count1] As Byte
+    Next
+  Next
+  Close #FMMBStream
+  
+End
+
+Public Sub SpinBox1_Change()
+  
+  BootData[0] = SpinBox1.value % 256
+  BootData[4] = Int(SpinBox1.value / 256)
+  'Print SpinBox1.value
+  
+End
+
+Public Sub SpinBox2_Change()
+  
+  BootData[1] = SpinBox2.value % 256
+  BootData[5] = Int(SpinBox2.value / 256)
+  
+End
+
+Public Sub SpinBox3_Change()
+  
+  BootData[2] = SpinBox3.value % 256
+  BootData[6] = Int(SpinBox3.value / 256)
+  
+End
+
+Public Sub SpinBox4_Change()
+  
+  BootData[3] = SpinBox4.value % 256
+  BootData[7] = Int(SpinBox4.value / 256)
+  
+End
+
+Public Sub EditDelete_Click()
+  
+  Dim count As Integer
+  
+  If FMain.hTextBox[CurrentSSD].Enabled = False Then Return ' Nothing to delete
+  If Message.Question("Are you sure you want to delete Disk: " & Str$(CurrentSSD) & "?", "OK", "Cancel") = 2 Then Return
+  For count = 0 To 14
+    IndexData[CurrentSSD, count] = 0
+  Next
+  IndexData[CurrentSSD, 15] = 240 'Set to unformatted
+  DisplayIndex(CurrentSSD)
+  'Print "Deleted " & Str$(CurrentSSD)
+  
+End

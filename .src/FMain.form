@@ -1,0 +1,105 @@
+# Gambas Form File 3.0
+
+{ Form Form
+  MoveScaled(0,0,101,76)
+  Text = ("MMB Disk Manager")
+  Resizable = False
+  { FileMenu Menu
+    Text = Shortcut(("File"), "F")
+    { FileOpen Menu
+      Text = ("Open")
+    }
+    { FileSave Menu
+      Text = ("Save")
+    }
+    { FileSaveAs Menu
+      Text = ("Save As") & "..."
+    }
+  }
+  { MenuEdit Menu
+    Text = Shortcut(("Edit"), "E")
+    { EditCopy Menu
+      Text = ("Copy")
+      Shortcut = "Ctrl+C"
+    }
+    { EditPaste Menu
+      Text = ("Paste")
+      Enabled = False
+      Shortcut = "Ctrl+V"
+    }
+    { EditDelete Menu
+      Text = ("Delete")
+      Shortcut = "Ctrl+D"
+    }
+    { SSDImport Menu
+      Text = ("SSD Import")
+    }
+    { SSDExport Menu
+      Text = ("SSD Export")
+    }
+  }
+  { !TabStrip1 TabStrip
+    MoveScaled(1,8,99,63)
+    #Public = True
+    Arrangement = Arrange.Column
+    Margin = True
+    Count = 8
+    Index = 0
+    Text = ("tab1")
+    Index = 1
+    Text = ("")
+    Index = 2
+    Text = ("")
+    Index = 3
+    Text = ("")
+    Index = 4
+    Text = ("")
+    Index = 5
+    Text = ("")
+    Index = 6
+    Text = ("")
+    Index = 7
+    Text = ("")
+    Index = 0
+  }
+  { Label1 Label
+    MoveScaled(47,2,10,4)
+    Text = ("Boot Disks:")
+  }
+  { Label2 Label
+    MoveScaled(59,2,3,4)
+    Text = ("0:")
+  }
+  { Label3 Label
+    MoveScaled(69,2,3,4)
+    Text = ("1:")
+  }
+  { Label4 Label
+    MoveScaled(89,2,3,4)
+    Text = ("3:")
+  }
+  { Label5 Label
+    MoveScaled(79,2,3,4)
+    Text = ("2:")
+  }
+  { !SpinBox1 SpinBox
+    MoveScaled(61,2,7,4)
+    #Public = True
+    MaxValue = 510
+  }
+  { !SpinBox2 SpinBox
+    MoveScaled(71,2,7,4)
+    #Public = True
+    MaxValue = 510
+  }
+  { !SpinBox4 SpinBox
+    MoveScaled(91,2,7,4)
+    #Public = True
+    MaxValue = 510
+  }
+  { !SpinBox3 SpinBox
+    MoveScaled(81,2,7,4)
+    #Public = True
+    MaxValue = 510
+  }
+}
