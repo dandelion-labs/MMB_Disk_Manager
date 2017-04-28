@@ -20,6 +20,7 @@
     Text = Shortcut(("Edit"), "E")
     { EditCopy Menu
       Text = ("Copy")
+      Enabled = False
       Shortcut = "Ctrl+C"
     }
     { EditPaste Menu
@@ -29,13 +30,21 @@
     }
     { EditDelete Menu
       Text = ("Delete")
+      Enabled = False
       Shortcut = "Ctrl+D"
     }
+  }
+  { MenuSSD Menu
+    Text = Shortcut(("SSD"), "S")
     { SSDImport Menu
       Text = ("SSD Import")
     }
     { SSDExport Menu
       Text = ("SSD Export")
+      Enabled = False
+    }
+    { SSDFormat Menu
+      Text = ("Format Disk")
     }
   }
   { !TabStrip1 TabStrip

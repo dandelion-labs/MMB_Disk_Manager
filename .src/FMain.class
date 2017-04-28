@@ -45,14 +45,13 @@
 '        bits 0 And 1 are the high bits For "number of sectors"
 'Byte 7 Is The low 8 bits Of "number of sectors"
 
-'Public hTextBox As New TextBox[511]
-'Public hPictureBox As New PictureBox[511]
 Public hPanel As New Panel[511]
 Public BootData As New Byte[16]
 Public IndexData As New Byte[511, 16]
 Public CurrentFile As String 'Current MMB file
 Public TMPFile As String     'Temporary working file
 Public CurrentSSD As Integer 'Current selected SSD image
+Public CopySSD As Integer 'SSD selected for copy
 
 Public Sub FileOpen_Click()
   
@@ -159,7 +158,7 @@ Public Sub Form_Open()
         .Enabled = False
         .MaxLength = 12
         .PopupMenu = "MenuEdit"
-        
+        .ReadOnly = True
       End With
       
     Next
@@ -167,6 +166,7 @@ Public Sub Form_Open()
   
   TabStrip1.Index = 0
   DisplayBootDisks()
+  FMain.hPanel[CurrentSSD].Background = &H9AD297
   
 End
 
@@ -239,6 +239,15 @@ Public Sub Panel_MouseDown()
   Try CurrentSSD = Val(Last.Parent.Tag) 'Sub was called via different event 
   If Error Then CurrentSSD = Val(Last.Tag) 'Sub was called by this event
   FMain.hPanel[CurrentSSD].Background = &H9AD297  '&HDAF6D8
+  If IndexData[CurrentSSD, 15] > 15 Then 'If disk is unused, disable copy/delete
+    MenuEdit.Children[0].Enabled = False
+    MenuEdit.Children[2].Enabled = False
+    MenuSSD.Children[1].Enabled = False
+  Else
+    MenuEdit.Children[0].Enabled = True
+    MenuEdit.Children[2].Enabled = True
+    MenuSSD.Children[1].Enabled = True
+  Endif
   
 End
 
@@ -249,8 +258,6 @@ Public Sub ILabel_MouseDown()
 End
 
 Public Sub SSDImport_Click()
-  'This just opens the SSD and reads the disk title and saves the file path to an array
-  'The actual import is done when saving the file
   
   Dim FSSDStream As Stream
   Dim FMMBStream As Stream
@@ -416,5 +423,37 @@ Public Sub EditDelete_Click()
   IndexData[CurrentSSD, 15] = 240 'Set to unformatted
   DisplayIndex(CurrentSSD)
   'Print "Deleted " & Str$(CurrentSSD)
+  
+End
+
+Public Sub EditCopy_Click()
+  
+  CopySSD = CurrentSSD
+  MenuEdit.Children[1].Enabled = True
+  
+End
+
+Public Sub EditPaste_Click()
+  
+  Dim count As Integer
+  Dim hFileFrom As Stream
+  Dim hFileTo As Stream
+  
+  If copySSD = CurrentSSD Then Return
+  If Message.Question("Are you sure you want to copy Disk: " & Str$(copySSD) & " to Disk: " & Str$(CurrentSSD) & " ?", "OK", "Cancel") = 2 Then Return 
+  hFileFrom = Open TMPFile For Read
+  hFileTo = Open TMPFile For Write
+  Seek #hFilefrom, (copySSD * 204800) + 8192
+  Seek #hFileTo, (currentSSD * 204800) + 8192
+  For count = 1 To 204800
+    Write #hFileTo, Read #hFileFrom As Byte As Byte
+  Next
+  Close #hFileFrom
+  Close #hFileTo
+  For count = 0 To 15
+    IndexData[CurrentSSD, count] = IndexData[CopySSD, count]
+  Next
+  DisplayIndex(CurrentSSD)
+  MenuEdit.Children[1].Enabled = False
   
 End
