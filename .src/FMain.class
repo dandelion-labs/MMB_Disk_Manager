@@ -45,8 +45,9 @@
 '        bits 0 And 1 are the high bits For "number of sectors"
 'Byte 7 Is The low 8 bits Of "number of sectors"
 
-Public hTextBox As New TextBox[511]
-Public hPictureBox As New PictureBox[511]
+'Public hTextBox As New TextBox[511]
+'Public hPictureBox As New PictureBox[511]
+Public hPanel As New Panel[511]
 Public BootData As New Byte[16]
 Public IndexData As New Byte[511, 16]
 Public CurrentFile As String 'Current MMB file
@@ -96,7 +97,8 @@ End
 
 Public Sub Form_Open()
   
-  Dim hPanel As Panel
+  Dim hTextBox As TextBox
+  Dim hPictureBox As PictureBox
   Dim hLabel As Label
   Dim count As Integer
   Dim count1 As Integer
@@ -125,38 +127,39 @@ Public Sub Form_Open()
     For count1 = 0 To EndCount
       BoxCount = (count * 64) + count1
       IndexData[Boxcount, 15] = 240 'Disk flag Unformatted
-      hPanel = New Panel(TabStrip1)
-      With hPanel
+      
+      hPanel[BoxCount] = New Panel(TabStrip1) As "Panel"
+      With hPanel[BoxCount]
         .Width = 165
         .height = 20
         .Arrangement = 4
+        .tag = Str$(BoxCount)
       End With   
       
-      hLabel = New Label(hPanel)
+      hLabel = New Label(hPanel[BoxCount]) As "ILabel"
       With hLabel
         .Width = 23
         .height = 20
-        .Text = Str$(BoxCount)
-        
+        .text = Str$(BoxCount)
       End With
       
-      hPictureBox[BoxCount] = New PictureBox(hPanel) As "Lock"
-      With hPictureBox[BoxCount]
+      hPictureBox = New PictureBox(hPanel[BoxCount]) As "Lock"
+      With hPictureBox
         .Width = 16
         .Picture = Picture["icon:/16/floppy"]
         .height = 16
         .Alignment = 3
-        .Tag = Str$(BoxCount)
+        
       End With
       
-      hTextBox[BoxCount] = New TextBox(hPanel) As "TextB" 
-      With hTextBox[BoxCount]
+      hTextBox = New TextBox(hPanel[BoxCount]) As "TextB"
+      With hTextBox
         .Width = 120
         .height = 20
         .Enabled = False
         .MaxLength = 12
         .PopupMenu = "MenuEdit"
-        .tag = Str$(BoxCount)
+        
       End With
       
     Next
@@ -169,19 +172,24 @@ End
 
 Public Sub DisplayIndex(Index As Integer)
   
-  FMain.hTextBox[Index].Text = Trim$(IndexToString(Index))
+  Dim htb As TextBox
+  Dim hpb As PictureBox
+  
+  htb = FMain.hPanel[Index].Children[2] ' Cast child to textbox (bug work around) i.e Children[2].Text is not seen as a valid property
+  htb.text = Trim$(IndexToString(Index))
   Select Case IndexData[Index, 15] 'Disk flags 
     Case 0 'Read Only
-      FMain.hTextBox[Index].Enabled = True
-      'FMain.hTextBox[Index].Background = &HFFFFFF
-      FMain.hPictureBox[Index].Picture = Picture["icon:/16/lock"]
+      FMain.HPanel[Index].Children[2].Enabled = True
+      hpb = FMain.HPanel[Index].Children[1] ' Cast child to picturebox (bug work around) i.e Children[1].Picture is not seen as a valid property
+      hpb.Picture = Picture["icon:/16/lock"]
     Case 15 'Read/Write
-      FMain.hTextBox[Index].Enabled = True
-      'FMain.hTextBox[Index].Background = &HFFFFFF
-      FMain.hPictureBox[Index].Picture = Picture["icon:/16/unlock"]
+      FMain.HPanel[Index].Children[2].Enabled = True
+      hpb = FMain.HPanel[Index].Children[1]
+      hpb.Picture = Picture["icon:/16/unlock"]
     Case 240 'Unformatted
-      FMain.hTextBox[Index].Enabled = False
-      FMain.hPictureBox[Index].Picture = Picture["icon:/16/floppy"]
+      FMain.HPanel[Index].Children[2].Enabled = False
+      hpb = FMain.HPanel[Index].Children[1]
+      hpb.Picture = Picture["icon:/16/floppy"]
   End Select
   
 End
@@ -209,20 +217,34 @@ End
 
 Public Sub TextB_MouseDown()
   
-  FMain.hTextBox[CurrentSSD].Parent.Background = FMain.TabStrip1.Background
-  CurrentSSD = Val(Last.Tag)
-  FMain.hTextBox[CurrentSSD].Parent.Background = &H9AD297  '&HDAF6D8
+  Panel_MouseDown()
   
 End
 
 Public Sub Lock_MouseDown()
   
-  If IndexData[Last.Tag, 15] = 0 Then
-    IndexData[Last.Tag, 15] = 15
-  Else If IndexData[Last.Tag, 15] = 15 Then
-    IndexData[Last.Tag, 15] = 0
+  If IndexData[Last.Parent.Tag, 15] = 0 Then
+    IndexData[Last.Parent.Tag, 15] = 15
+  Else If IndexData[Last.Parent.Tag, 15] = 15 Then
+    IndexData[Last.Parent.Tag, 15] = 0
   Endif
-  DisplayIndex(Last.Tag)
+  DisplayIndex(Last.Parent.Tag)
+  Panel_MouseDown()
+  
+End
+
+Public Sub Panel_MouseDown()
+  
+  FMain.hPanel[CurrentSSD].Background = FMain.TabStrip1.Background
+  Try CurrentSSD = Val(Last.Parent.Tag) 'Sub was called via different event 
+  If Error Then CurrentSSD = Val(Last.Tag) 'Sub was called by this event
+  FMain.hPanel[CurrentSSD].Background = &H9AD297  '&HDAF6D8
+  
+End
+
+Public Sub ILabel_MouseDown()
+  
+  Panel_MouseDown()
   
 End
 
@@ -386,7 +408,7 @@ Public Sub EditDelete_Click()
   
   Dim count As Integer
   
-  If FMain.hTextBox[CurrentSSD].Enabled = False Then Return ' Nothing to delete
+  If FMain.hPanel[CurrentSSD].Children[2].Enabled = False Then Return ' Nothing to delete
   If Message.Question("Are you sure you want to delete Disk: " & Str$(CurrentSSD) & "?", "OK", "Cancel") = 2 Then Return
   For count = 0 To 14
     IndexData[CurrentSSD, count] = 0
