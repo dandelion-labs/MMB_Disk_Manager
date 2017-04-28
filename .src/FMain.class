@@ -1,5 +1,7 @@
 ' Gambas class file
 
+'Following notes from: http://sweh.spuddy.org/Beeb/mmb_utils.html
+
 '== == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == =
 'Disk format
 '== == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == =
@@ -44,6 +46,31 @@
 'Byte 6: bits 4 And 5 encode the "*OPT 4" value
 '        bits 0 And 1 are the high bits For "number of sectors"
 'Byte 7 Is The low 8 bits Of "number of sectors"
+
+'Now For a "double density" disk, you need 11 bits To encode the disk
+'size, so Solidisk And others used byte 6 bit 2(unused) For this.
+'This code will always assume this bit Is Part Of the sector size.
+
+'See "Solidisk chained catalgues"(below) For a minor variation On this.
+
+'Now we have the remaining 31 records, which Match file equivalent
+'files In sector 0. They are laid out Like this:
+'  LL LL EE EE SS SS XX YY
+'where "LLLL" Is The load address, "EEEE" Is The Exec address, "SSSS" Is
+'the size, And "YY" Is The start sector."XX" Is The fun one.
+'  bits 0 + 1 are high bits Of sector start
+'  bits 2 + 3 are high bits Of load address
+'  bits 4 + 5 are high bits Of size
+'  bits 6 + 7 are high bits Of Exec address
+
+'That makes 10 bits For start sector And 18 bits For size.
+
+'But On a 320 K disk you need 11 bits For stat sector And 19 bits For size.
+'So Solidisk steals bits 2 And 3("load address").bit 2 Is Added To the
+'sector, bit 3 To the size.This means we have Now only have 8 bits For
+'the load address.So, by trial And Error ( And disk sector editing -
+'Solidisk DDFS comes With * DZAP: - ))I found that Solidisk reuses the
+'high bits Of the "exec" address As The high bits Of the "load" address.
 
 Public hPanel As New Panel[511]
 Public BootData As New Byte[16]
@@ -239,10 +266,10 @@ Public Sub Panel_MouseDown()
   Try CurrentSSD = Val(Last.Parent.Tag) 'Sub was called via different event 
   If Error Then CurrentSSD = Val(Last.Tag) 'Sub was called by this event
   FMain.hPanel[CurrentSSD].Background = &H9AD297  '&HDAF6D8
-  If IndexData[CurrentSSD, 15] > 15 Then 'If disk is unused, disable copy/delete
-    MenuEdit.Children[0].Enabled = False
-    MenuEdit.Children[2].Enabled = False
-    MenuSSD.Children[1].Enabled = False
+  If IndexData[CurrentSSD, 15] > 15 Then 'If disk is unused, disable copy/delete/export
+    MenuEdit.Children[0].Enabled = False 'copy
+    MenuEdit.Children[2].Enabled = False 'delete
+    MenuSSD.Children[1].Enabled = False 'export
   Else
     MenuEdit.Children[0].Enabled = True
     MenuEdit.Children[2].Enabled = True
