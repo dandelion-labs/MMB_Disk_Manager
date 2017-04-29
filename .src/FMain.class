@@ -47,12 +47,6 @@
 '        bits 0 And 1 are the high bits For "number of sectors"
 'Byte 7 Is The low 8 bits Of "number of sectors"
 
-'Now For a "double density" disk, you need 11 bits To encode the disk
-'size, so Solidisk And others used byte 6 bit 2(unused) For this.
-'This code will always assume this bit Is Part Of the sector size.
-
-'See "Solidisk chained catalgues"(below) For a minor variation On this.
-
 'Now we have the remaining 31 records, which Match file equivalent
 'files In sector 0. They are laid out Like this:
 '  LL LL EE EE SS SS XX YY
@@ -64,13 +58,6 @@
 '  bits 6 + 7 are high bits Of Exec address
 
 'That makes 10 bits For start sector And 18 bits For size.
-
-'But On a 320 K disk you need 11 bits For stat sector And 19 bits For size.
-'So Solidisk steals bits 2 And 3("load address").bit 2 Is Added To the
-'sector, bit 3 To the size.This means we have Now only have 8 bits For
-'the load address.So, by trial And Error ( And disk sector editing -
-'Solidisk DDFS comes With * DZAP: - ))I found that Solidisk reuses the
-'high bits Of the "exec" address As The high bits Of the "load" address.
 
 Public hPanel As New Panel[511]
 Public BootData As New Byte[16]
@@ -199,23 +186,24 @@ Public Sub DisplayIndex(Index As Integer)
   Dim hpb As PictureBox
   
   htb = FMain.hPanel[Index].Children[2] ' Cast child to textbox (bug work around) i.e Children[2].Text is not seen as a valid property
+  hpb = FMain.HPanel[Index].Children[1] ' Cast child to picturebox (bug work around) i.e Children[1].Picture is not seen as a valid property
+  Object.Lock(htb) 'Stop the textbox from raising a changed event
   htb.text = Trim$(IndexToString(Index))
+  Object.Unlock(htb)
   Select Case IndexData[Index, 15] 'Disk flags 
     Case 0 'Read Only
-      FMain.HPanel[Index].Children[2].Enabled = True
-      hpb = FMain.HPanel[Index].Children[1] ' Cast child to picturebox (bug work around) i.e Children[1].Picture is not seen as a valid property
+      htb.Enabled = True
+      htb.ReadOnly = True
       hpb.Picture = Picture["icon:/16/lock"]
     Case 15 'Read/Write
-      FMain.HPanel[Index].Children[2].Enabled = True
-      hpb = FMain.HPanel[Index].Children[1]
+      htb.Enabled = True
+      htb.ReadOnly = False
       hpb.Picture = Picture["icon:/16/unlock"]
     Case 240 'Unformatted
-      FMain.HPanel[Index].Children[2].Enabled = False
-      hpb = FMain.HPanel[Index].Children[1]
+      htb.Enabled = False
       hpb.Picture = Picture["icon:/16/floppy"]
     Case 255 'Invalid Disk
-      FMain.HPanel[Index].Children[2].Enabled = False
-      hpb = FMain.HPanel[Index].Children[1]
+      htb.Enabled = False
       hpb.Picture = Picture["icon:/16/warning"]
   End Select
   
@@ -294,7 +282,6 @@ Public Sub SSDImport_Click()
   Dim FSSDLength As Integer
   Dim SSDPosition As Integer
   Dim count As Integer
-  'Dim count1 As Integer
   Dim DiskTitle As New Byte[12]
   
   Dialog.Title = "Choose a file"
@@ -318,7 +305,6 @@ Public Sub SSDImport_Click()
   Next
   
   Close #FSSDStream
-  'TODO Add confirmation dialog
   If Message.Question("Are you sure you want to import to Disk " & Str$(CurrentSSD) & "?", "OK", "Cancel") = 2 Then Return
   
   For count = 0 To 11 ' Copy disk title to current index
@@ -363,21 +349,18 @@ Public Sub FileSave_Click()
   Endif
   Copy TMPFile To CurrentFile
   HasMMBChanged = False
-  'Print "Saved"
   
 End
 
 Public Sub CreateTMPFile()
   
   Dim hFile As Stream
-  'Dim count As Integer
+  
   TMPFile = Temp$()
-  'Print TMPFile
   hFile = Open TMPFile For Create
   Seek #hFile, Lof(hFile) + 8191
   Write #hFile, 0 As Byte
   Close #hFile
-  'WriteIndexToTMP()
   
 End
 
@@ -424,7 +407,6 @@ Public Sub SpinBox1_Change()
   
   BootData[0] = SpinBox1.value % 256
   BootData[4] = Int(SpinBox1.value / 256)
-  'Print SpinBox1.value
   
 End
 
@@ -460,7 +442,6 @@ Public Sub EditDelete_Click()
   Next
   IndexData[CurrentSSD, 15] = 240 'Set to unformatted
   DisplayIndex(CurrentSSD)
-  'Print "Deleted " & Str$(CurrentSSD)
   
 End
 
@@ -538,5 +519,35 @@ Public Sub Form_Close()
       Return
     End If
   End If
+  
+End
+
+Public Sub TextB_Change()
+  
+  Dim count As Integer
+  Dim NameLength As Integer
+  Dim Index As Integer
+  Dim Char As Byte
+  Dim hFile As Stream
+  
+  NameLength = Last.Length
+  Index = Last.Parent.tag
+  'Update Index
+  For count = 0 To NameLength 
+    Char = Asc(Mid$(Last.text, count + 1, 1))
+    IndexData[Index, count] = Char
+  Next
+  If NameLength < 12 Then IndexData[Index, count] = 0 'Null terminated if less than 12 chrs
+  'Update SSD Image
+  hFile = Open TMPFile For Write 
+  Seek #hFile, (Index * 204800) + 8192
+  For count = 0 To 7 'Write first 8 bits of title
+    Write #hFile, IndexData[Index, count] As Byte
+  Next
+  Seek #hFile, (Index * 204800) + 8448
+  For count = 8 To 11 'Write last 4 bits of title
+    Write #hFile, IndexData[Index, count] As Byte
+  Next
+  Close #hFile
   
 End
