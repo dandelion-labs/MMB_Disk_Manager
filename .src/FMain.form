@@ -6,6 +6,9 @@
   Resizable = False
   { FileMenu Menu
     Text = Shortcut(("File"), "F")
+    { FileNew Menu
+      Text = ("New")
+    }
     { FileOpen Menu
       Text = ("Open")
     }

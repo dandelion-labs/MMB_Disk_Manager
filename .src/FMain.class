@@ -79,6 +79,7 @@ Public CurrentFile As String 'Current MMB file
 Public TMPFile As String     'Temporary working file
 Public CurrentSSD As Integer 'Current selected SSD image
 Public CopySSD As Integer 'SSD selected for copy
+Public HasMMBChanged As Boolean
 
 Public Sub FileOpen_Click()
   
@@ -86,6 +87,9 @@ Public Sub FileOpen_Click()
   Dim count As Integer
   Dim count1 As Integer
   
+  If HasMMBChanged = True Then
+    If Message.Warning("Current MMB as not been saved. Do you want to discard changes ?", "OK", "Cancel") = 2 Then Return
+  End If
   Dialog.Title = "Choose a file"
   Dialog.Filter = ["*.MMB", "BBC File Archive"]
   Dialog.Path = "."
@@ -130,14 +134,6 @@ Public Sub Form_Open()
   Dim count1 As Integer
   Dim BoxCount As Integer
   Dim EndCount As Integer
-  
-  'Default BootData
-  BootData[0] = 0
-  BootData[1] = 1
-  BootData[2] = 2
-  BootData[3] = 3
-  
-  CreateTMPFile()
   
   EndCount = 63
   
@@ -192,7 +188,7 @@ Public Sub Form_Open()
   Next
   
   TabStrip1.Index = 0
-  DisplayBootDisks()
+  FileNew_Click()
   FMain.hPanel[CurrentSSD].Background = &H9AD297
   
 End
@@ -217,6 +213,10 @@ Public Sub DisplayIndex(Index As Integer)
       FMain.HPanel[Index].Children[2].Enabled = False
       hpb = FMain.HPanel[Index].Children[1]
       hpb.Picture = Picture["icon:/16/floppy"]
+    Case 255 'Invalid Disk
+      FMain.HPanel[Index].Children[2].Enabled = False
+      hpb = FMain.HPanel[Index].Children[1]
+      hpb.Picture = Picture["icon:/16/warning"]
   End Select
   
 End
@@ -252,10 +252,13 @@ Public Sub Lock_MouseDown()
   
   If IndexData[Last.Parent.Tag, 15] = 0 Then
     IndexData[Last.Parent.Tag, 15] = 15
+    HasMMBChanged = True
   Else If IndexData[Last.Parent.Tag, 15] = 15 Then
     IndexData[Last.Parent.Tag, 15] = 0
+    HasMMBChanged = True
   Endif
   DisplayIndex(Last.Parent.Tag)
+  
   Panel_MouseDown()
   
 End
@@ -341,6 +344,7 @@ Public Sub SSDImport_Click()
   Next
   Close #FMMBStream
   Close #FSSDStream
+  HasMMBChanged = True
   
 End
 
@@ -358,6 +362,7 @@ Public Sub FileSave_Click()
     Return
   Endif
   Copy TMPFile To CurrentFile
+  HasMMBChanged = False
   'Print "Saved"
   
 End
@@ -369,10 +374,10 @@ Public Sub CreateTMPFile()
   TMPFile = Temp$()
   'Print TMPFile
   hFile = Open TMPFile For Create
-  Seek #hFile, Lof(hFile) + 8192
+  Seek #hFile, Lof(hFile) + 8191
   Write #hFile, 0 As Byte
   Close #hFile
-  WriteIndexToTMP()
+  'WriteIndexToTMP()
   
 End
 
@@ -384,7 +389,13 @@ Public Sub FileSaveAs_Click()
     Return ' User pressed Cancel -
   Endif
   CurrentFile = Dialog.path
+  Try Kill CurrentFile
+  If Error Then
+    Message.Error("Cannot Write to File.")
+    Return
+  Endif
   Copy TMPFile To CurrentFile
+  HasMMBChanged = False
   
 End
 
@@ -482,5 +493,50 @@ Public Sub EditPaste_Click()
   Next
   DisplayIndex(CurrentSSD)
   MenuEdit.Children[1].Enabled = False
+  HasMMBChanged = True
+  
+End
+
+Public Sub FileNew_Click()
+  
+  Dim count As Integer
+  Dim count1 As Integer
+  
+  If HasMMBChanged = True Then
+    If Message.Warning("Current MMB as not been saved. Do you want to discard changes ?", "OK", "Cancel") = 2 Then Return
+  End If
+  For count = 0 To 14 'Reset bootdata
+    BootData[count] = 0
+  Next
+  BootData[0] = 0
+  BootData[1] = 1
+  BootData[2] = 2
+  BootData[3] = 3
+  
+  For count = 0 To 510 'Reset IndexData
+    For count1 = 0 To 14
+      IndexData[count, count1] = 0
+    Next
+    IndexData[count, 15] = 240 'Unformatted
+  Next
+  
+  CreateTMPFile()
+  WriteIndexToTMP()
+  For count = 0 To 510
+    DisplayIndex(count)
+  Next
+  DisplayBootDisks()
+  HasMMBChanged = False
+  
+End
+
+Public Sub Form_Close()
+  
+  If HasMMBChanged = True Then
+    If Message.Warning("Current MMB as not been saved. Do you want to discard changes ?", "OK", "Cancel") = 2 Then
+      Stop Event
+      Return
+    End If
+  End If
   
 End
