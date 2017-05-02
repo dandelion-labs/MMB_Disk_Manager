@@ -3,12 +3,11 @@
 Title=MMB Disk Manager
 Startup=FMain
 Icon=floppy.png
-Version=0.0.4
+Version=0.0.6
 Component=gb.image
 Component=gb.gui
 Component=gb.form
 Environment="GB_GUI=gb.qt4"
 TabSize=2
 Language=en_GB
-CreateShortcut=1
 Packager=1

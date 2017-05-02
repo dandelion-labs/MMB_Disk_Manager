@@ -339,6 +339,7 @@ Public Sub FileSave_Click()
   If Message.Question("Are you sure you want to save?", "OK", "Cancel") = 2 Then Return
   If CurrentFile = "" Then
     FileSaveAs_Click()
+    Return
   End If
   If CurrentFile = "" Then Return
   WriteIndexToTMP()
@@ -372,12 +373,13 @@ Public Sub FileSaveAs_Click()
     Return ' User pressed Cancel -
   Endif
   CurrentFile = Dialog.path
-  Try Kill CurrentFile
+  WriteIndexToTMP()
+  Try Kill Currentfile
+  Try Copy TMPFile To CurrentFile
   If Error Then
     Message.Error("Cannot Write to File.")
     Return
   Endif
-  Copy TMPFile To CurrentFile
   HasMMBChanged = False
   
 End
@@ -550,5 +552,32 @@ Public Sub TextB_Change()
     Write #hFile, IndexData[Index, count] As Byte
   Next
   Close #hFile
+  
+End
+
+Public Sub SSDFormat_Click()
+  
+  Dim count As Integer
+  Dim hFile As Stream
+  
+  If Message.Warning("Are you sure you want to format Disk: " & Str$(CurrentSSD) & "? - All data will be lost.", "OK", "Cancel") = 2 Then
+    Return
+  End If
+  hFile = Open TMPFile For Write 
+  Seek #hFile, (CurrentSSD * 204800) + 8192
+  'Zero disk
+  For count = 1 To 204800
+    Write #hFile, 0 As Byte 
+  Next
+  'Write OPT & sectors
+  Seek #hFile, (CurrentSSD * 204800) + 8454
+  Write #hFile, &H03 As Byte
+  Write #hFile, &H20 As Byte
+  Close #hFile
+  For count = 0 To 14
+    IndexData[CurrentSSD, count] = 0
+  Next
+  IndexData[CurrentSSD, 15] = 15 'Read/Write
+  DisplayIndex(CurrentSSD)
   
 End
