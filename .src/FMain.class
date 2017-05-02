@@ -285,7 +285,7 @@ Public Sub SSDImport_Click()
   Dim DiskTitle As New Byte[12]
   
   Dialog.Title = "Choose a file"
-  Dialog.Filter = ["*.SSD", "BBC Single Sided Disk"]
+  Dialog.Filter = ["*.ssd", "BBC Single Sided Disk"]
   Dialog.Path = "."
   If Dialog.OpenFile() Then
     Return ' User pressed Cancel -
@@ -343,9 +343,11 @@ Public Sub FileSave_Click()
   End If
   If CurrentFile = "" Then Return
   WriteIndexToTMP()
+  Print CurrentFile
   Try Kill CurrentFile
   If Error Then
-    Message.Error("Cannot Write to File.")
+    Message.Error(Error.text)
+    'Print Error.text
     Return
   Endif
   Copy TMPFile To CurrentFile
@@ -377,7 +379,7 @@ Public Sub FileSaveAs_Click()
   Try Kill Currentfile
   Try Copy TMPFile To CurrentFile
   If Error Then
-    Message.Error("Cannot Write to File.")
+    Message.Error(Error.text)
     Return
   Endif
   HasMMBChanged = False
