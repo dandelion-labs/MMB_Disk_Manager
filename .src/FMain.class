@@ -583,3 +583,38 @@ Public Sub SSDFormat_Click()
   DisplayIndex(CurrentSSD)
   
 End
+
+Public Sub SSDExport_Click()
+  
+  Dim count As Integer
+  Dim hFileFrom As Stream
+  Dim hFileTo As Stream
+  Dim htb As TextBox
+  
+  htb = FMain.hPanel[CurrentSSD].Children[2] ' Cast child to textbox (bug work around) i.e Children[2].Text is not seen as a valid property
+  Dialog.Filter = ["*.ssd", "BBC Single Sided Disk"]
+  Dialog.Path = "." & "/" & htb.Text & ".ssd"
+  If Dialog.SaveFile() Then
+    Return ' User pressed Cancel -
+  Endif
+  If Dialog.Path = "" Then Return
+  Try hFileTo = Open Dialog.Path For Create
+  If Error Then
+    Message.Error(Error.text)
+    Return
+  Endif
+  hFileFrom = Open TMPFile For Read
+  Seek #hFilefrom, (CurrentSSD * 204800) + 8192
+  For count = 1 To 204800
+    Write #hFileTo, Read #hFileFrom As Byte As Byte
+  Next
+  Close #hFileFrom
+  Close #hFileTo
+  
+End
+
+Public Sub MenuAbout_Click()
+  
+  Message.Info("<center>MMB Disk Manager<br>(c)2017 Jason Lucas<br>spookyconnection@virginmedia.com</center>")
+  
+End

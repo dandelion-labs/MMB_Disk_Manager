@@ -50,6 +50,12 @@
       Text = ("Format Disk")
     }
   }
+  { MenuHelp Menu
+    Text = Shortcut(("Help"), "H")
+    { MenuAbout Menu
+      Text = ("About")
+    }
+  }
   { !TabStrip1 TabStrip
     MoveScaled(1,8,99,63)
     #Public = True
