@@ -62,9 +62,7 @@
 Public hPanel As New Panel[511]
 Public BootData As New Byte[16]
 Public IndexData As New Byte[511, 16]
-Public CurrentFile As String 'Current MMB file
-Public TMPFile As String     'Temporary working file
-Public CurrentSSD As Integer 'Current selected SSD image
+
 Public CopySSD As Integer 'SSD selected for copy
 Public HasMMBChanged As Boolean
 
@@ -86,8 +84,8 @@ Public Sub FileOpen_Click()
   If UCase(Right$(Dialog.Path, 3)) <> "MMB" Then
     Return 'Wrong file extension
   Endif
-  CurrentFile = Dialog.Path
-  FStream = Open CurrentFile For Input
+  General.CurrentFile = Dialog.Path
+  FStream = Open General.CurrentFile For Input
   'TODO Need to verify valid file format
   
   'Read boot data
@@ -107,8 +105,8 @@ Public Sub FileOpen_Click()
   Next
   
   Close #FStream
-  Kill TMPFile
-  Copy CurrentFile To TMPFile
+  Kill General.TMPFile
+  Copy General.CurrentFile To General.TMPFile
   
 End
 
@@ -167,7 +165,7 @@ Public Sub Form_Open()
         .height = 20
         .Enabled = False
         .MaxLength = 12
-        .PopupMenu = "MenuEdit"
+        .PopupMenu = "MenuSSD"
         .ReadOnly = True
       End With
       
@@ -176,7 +174,7 @@ Public Sub Form_Open()
   
   TabStrip1.Index = 0
   FileNew_Click()
-  FMain.hPanel[CurrentSSD].Background = &H9AD297
+  FMain.hPanel[General.CurrentSSD].Background = &H9AD297
   
 End
 
@@ -253,18 +251,20 @@ End
 
 Public Sub Panel_MouseDown()
   
-  FMain.hPanel[CurrentSSD].Background = FMain.TabStrip1.Background
-  Try CurrentSSD = Val(Last.Parent.Tag) 'Sub was called via different event 
-  If Error Then CurrentSSD = Val(Last.Tag) 'Sub was called by this event
-  FMain.hPanel[CurrentSSD].Background = &H9AD297  '&HDAF6D8
-  If IndexData[CurrentSSD, 15] > 15 Then 'If disk is unused, disable copy/delete/export
+  FMain.hPanel[General.CurrentSSD].Background = FMain.TabStrip1.Background
+  Try General.CurrentSSD = Val(Last.Parent.Tag) 'Sub was called via different event 
+  If Error Then General.CurrentSSD = Val(Last.Tag) 'Sub was called by this event
+  FMain.hPanel[General.CurrentSSD].Background = &H9AD297  '&HDAF6D8
+  If IndexData[General.CurrentSSD, 15] > 15 Then 'If disk is unused, disable copy/delete/export/edit
     MenuEdit.Children[0].Enabled = False 'copy
     MenuEdit.Children[2].Enabled = False 'delete
     MenuSSD.Children[1].Enabled = False 'export
+    MenuSSD.Children[2].Enabled = False 'edit
   Else
     MenuEdit.Children[0].Enabled = True
     MenuEdit.Children[2].Enabled = True
     MenuSSD.Children[1].Enabled = True
+    MenuSSD.Children[2].Enabled = True
   Endif
   
 End
@@ -305,23 +305,23 @@ Public Sub SSDImport_Click()
   Next
   
   Close #FSSDStream
-  If Message.Question("Are you sure you want to import to Disk " & Str$(CurrentSSD) & "?", "OK", "Cancel") = 2 Then Return
+  If Message.Question("Are you sure you want to import to Disk " & Str$(General.CurrentSSD) & "?", "OK", "Cancel") = 2 Then Return
   
   For count = 0 To 11 ' Copy disk title to current index
     If DiskTitle[count] < 32 Then
       DiskTitle[count] = 0
     Endif
-    IndexData[CurrentSSD, count] = DiskTitle[count]
+    IndexData[General.CurrentSSD, count] = DiskTitle[count]
   Next
-  IndexData[CurrentSSD, 15] = 0 'Set to Read Only
-  DisplayIndex(CurrentSSD)
+  IndexData[General.CurrentSSD, 15] = 0 'Set to Read Only
+  DisplayIndex(General.CurrentSSD)
   'Write Boot & Index 
   WriteIndexToTMP()
   'Copy SSD file to temp MMB file
   FSSDStream = Open Dialog.path For Read
-  FMMBStream = Open TMPFile For Write
+  FMMBStream = Open General.TMPFile For Write
   FSSDLength = Lof(FSSDStream)
-  SSDPosition = (CurrentSSD * 204800) + 8192
+  SSDPosition = (General.CurrentSSD * 204800) + 8192
   
   'Write SSD
   Seek #FMMBStream, SSDPosition
@@ -337,20 +337,20 @@ End
 Public Sub FileSave_Click()
   
   If Message.Question("Are you sure you want to save?", "OK", "Cancel") = 2 Then Return
-  If CurrentFile = "" Then
+  If General.CurrentFile = "" Then
     FileSaveAs_Click()
     Return
   End If
-  If CurrentFile = "" Then Return
+  If General.CurrentFile = "" Then Return
   WriteIndexToTMP()
-  Print CurrentFile
-  Try Kill CurrentFile
+  Print General.CurrentFile
+  Try Kill General.CurrentFile
   If Error Then
     Message.Error(Error.text)
     'Print Error.text
     Return
   Endif
-  Copy TMPFile To CurrentFile
+  Copy General.TMPFile To General.CurrentFile
   HasMMBChanged = False
   
 End
@@ -359,8 +359,8 @@ Public Sub CreateTMPFile()
   
   Dim hFile As Stream
   
-  TMPFile = Temp$()
-  hFile = Open TMPFile For Create
+  General.TMPFile = Temp$()
+  hFile = Open General.TMPFile For Create
   Seek #hFile, Lof(hFile) + 8191
   Write #hFile, 0 As Byte
   Close #hFile
@@ -374,10 +374,10 @@ Public Sub FileSaveAs_Click()
   If Dialog.SaveFile() Then
     Return ' User pressed Cancel -
   Endif
-  CurrentFile = Dialog.path
+  General.CurrentFile = Dialog.path
   WriteIndexToTMP()
-  Try Kill Currentfile
-  Try Copy TMPFile To CurrentFile
+  Try Kill General.CurrentFile
+  Try Copy General.TMPFile To General.CurrentFile
   If Error Then
     Message.Error(Error.text)
     Return
@@ -392,7 +392,7 @@ Public Sub WriteIndexToTMP()
   Dim count As Integer
   Dim count1 As Integer
   
-  FMMBStream = Open TMPFile For Write
+  FMMBStream = Open General.TMPFile For Write
   'Write BootData
   For count = 0 To 15
     Write #FMMBStream, BootData[count] As Byte
@@ -439,19 +439,19 @@ Public Sub EditDelete_Click()
   
   Dim count As Integer
   
-  If FMain.hPanel[CurrentSSD].Children[2].Enabled = False Then Return ' Nothing to delete
-  If Message.Question("Are you sure you want to delete Disk: " & Str$(CurrentSSD) & "?", "OK", "Cancel") = 2 Then Return
+  If FMain.hPanel[General.CurrentSSD].Children[2].Enabled = False Then Return ' Nothing to delete
+  If Message.Question("Are you sure you want to delete Disk: " & Str$(General.CurrentSSD) & "?", "OK", "Cancel") = 2 Then Return
   For count = 0 To 14
-    IndexData[CurrentSSD, count] = 0
+    IndexData[General.CurrentSSD, count] = 0
   Next
-  IndexData[CurrentSSD, 15] = 240 'Set to unformatted
-  DisplayIndex(CurrentSSD)
+  IndexData[General.CurrentSSD, 15] = 240 'Set to unformatted
+  DisplayIndex(General.CurrentSSD)
   
 End
 
 Public Sub EditCopy_Click()
   
-  CopySSD = CurrentSSD
+  CopySSD = General.CurrentSSD
   MenuEdit.Children[1].Enabled = True
   
 End
@@ -462,21 +462,21 @@ Public Sub EditPaste_Click()
   Dim hFileFrom As Stream
   Dim hFileTo As Stream
   
-  If copySSD = CurrentSSD Then Return
-  If Message.Question("Are you sure you want to copy Disk: " & Str$(copySSD) & " to Disk: " & Str$(CurrentSSD) & " ?", "OK", "Cancel") = 2 Then Return 
-  hFileFrom = Open TMPFile For Read
-  hFileTo = Open TMPFile For Write
+  If copySSD = General.CurrentSSD Then Return
+  If Message.Question("Are you sure you want to copy Disk: " & Str$(copySSD) & " to Disk: " & Str$(General.CurrentSSD) & " ?", "OK", "Cancel") = 2 Then Return 
+  hFileFrom = Open General.TMPFile For Read
+  hFileTo = Open General.TMPFile For Write
   Seek #hFilefrom, (copySSD * 204800) + 8192
-  Seek #hFileTo, (currentSSD * 204800) + 8192
+  Seek #hFileTo, (General.CurrentSSD * 204800) + 8192
   For count = 1 To 204800
     Write #hFileTo, Read #hFileFrom As Byte As Byte
   Next
   Close #hFileFrom
   Close #hFileTo
   For count = 0 To 15
-    IndexData[CurrentSSD, count] = IndexData[CopySSD, count]
+    IndexData[General.CurrentSSD, count] = IndexData[CopySSD, count]
   Next
-  DisplayIndex(CurrentSSD)
+  DisplayIndex(General.CurrentSSD)
   MenuEdit.Children[1].Enabled = False
   HasMMBChanged = True
   
@@ -523,6 +523,7 @@ Public Sub Form_Close()
       Return
     End If
   End If
+  Quit
   
 End
 
@@ -544,7 +545,7 @@ Public Sub TextB_Change()
   Next
   If NameLength < 12 Then IndexData[Index, count] = 0 'Null terminated if less than 12 chrs
   'Update SSD Image
-  hFile = Open TMPFile For Write 
+  hFile = Open General.TMPFile For Write 
   Seek #hFile, (Index * 204800) + 8192
   For count = 0 To 7 'Write first 8 bits of title
     Write #hFile, IndexData[Index, count] As Byte
@@ -562,25 +563,25 @@ Public Sub SSDFormat_Click()
   Dim count As Integer
   Dim hFile As Stream
   
-  If Message.Warning("Are you sure you want to format Disk: " & Str$(CurrentSSD) & "? - All data will be lost.", "OK", "Cancel") = 2 Then
+  If Message.Warning("Are you sure you want to format Disk: " & Str$(General.CurrentSSD) & "? - All data will be lost.", "OK", "Cancel") = 2 Then
     Return
   End If
-  hFile = Open TMPFile For Write 
-  Seek #hFile, (CurrentSSD * 204800) + 8192
+  hFile = Open General.TMPFile For Write 
+  Seek #hFile, (General.CurrentSSD * 204800) + 8192
   'Zero disk
   For count = 1 To 204800
     Write #hFile, 0 As Byte 
   Next
   'Write OPT & sectors
-  Seek #hFile, (CurrentSSD * 204800) + 8454
+  Seek #hFile, (General.CurrentSSD * 204800) + 8454
   Write #hFile, &H03 As Byte
   Write #hFile, &H20 As Byte
   Close #hFile
   For count = 0 To 14
-    IndexData[CurrentSSD, count] = 0
+    IndexData[General.CurrentSSD, count] = 0
   Next
-  IndexData[CurrentSSD, 15] = 15 'Read/Write
-  DisplayIndex(CurrentSSD)
+  IndexData[General.CurrentSSD, 15] = 15 'Read/Write
+  DisplayIndex(General.CurrentSSD)
   
 End
 
@@ -591,7 +592,7 @@ Public Sub SSDExport_Click()
   Dim hFileTo As Stream
   Dim htb As TextBox
   
-  htb = FMain.hPanel[CurrentSSD].Children[2] ' Cast child to textbox (bug work around) i.e Children[2].Text is not seen as a valid property
+  htb = FMain.hPanel[General.CurrentSSD].Children[2] ' Cast child to textbox (bug work around) i.e Children[2].Text is not seen as a valid property
   Dialog.Filter = ["*.ssd", "BBC Single Sided Disk"]
   Dialog.Path = "." & "/" & htb.Text & ".ssd"
   If Dialog.SaveFile() Then
@@ -603,8 +604,8 @@ Public Sub SSDExport_Click()
     Message.Error(Error.text)
     Return
   Endif
-  hFileFrom = Open TMPFile For Read
-  Seek #hFilefrom, (CurrentSSD * 204800) + 8192
+  hFileFrom = Open General.TMPFile For Read
+  Seek #hFilefrom, (General.CurrentSSD * 204800) + 8192
   For count = 1 To 204800
     Write #hFileTo, Read #hFileFrom As Byte As Byte
   Next
@@ -616,5 +617,14 @@ End
 Public Sub MenuAbout_Click()
   
   Message.Info("<center>MMB Disk Manager<br>(c)2017 Jason Lucas<br>spookyconnection@virginmedia.com</center>")
+  
+End
+
+Public Sub SSDEdit_Click()
+  
+  Dim hForm As Form
+  
+  hForm = New Fssd
+  hForm.Show()
   
 End

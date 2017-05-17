@@ -1,0 +1,218 @@
+' Gambas class file
+
+Public hPanel As New Panel[31]
+Public SSD As New SSD
+
+Public Sub Form_Open()
+  
+  SSD.LoadDirectory(General.CurrentSSD)
+  Me.Text = "SSD: " & Str$(General.CurrentSSD) & " - " & SSD.GetTitle()
+  PopulateFileList()
+  DisplayDiskData()
+  
+End
+
+Public Sub PopulateFileList()
+  
+  Dim Count As Integer
+  Dim TotalWidth As Integer
+  Dim hHeader As Panel
+  Dim hLabel As Label
+  Dim hMaskBox As MaskBox
+  Dim hTextBox As TextBox
+  Dim Widths As New Integer[7]
+  Dim AttText As String
+  
+  Widths[0] = 25 'Directory
+  Widths[1] = 80 'File Name
+  Widths[2] = 25 'Attribute
+  Widths[3] = 60 'Load Addr
+  Widths[4] = 60 'Exec Addr
+  Widths[5] = 60 'Size
+  Widths[6] = 45 'Sector
+  
+  'Header
+  hHeader = New Panel(ScrollView1)
+  With hHeader
+    .height = 20
+    .Arrangement = 4
+    .Background = &AAAAAA
+  End With
+  
+  hLabel = New Label(hHeader)
+  With hLabel
+    .Height = 20
+    .Width = Widths[0]
+    .Text = "Dir."
+    .Alignment = 3
+  End With
+  
+  hLabel = New Label(hHeader)
+  With hLabel
+    .Height = 20
+    .Width = Widths[1]
+    .Text = "File Name"
+    .Alignment = 3
+  End With
+  
+  hLabel = New Label(hHeader)
+  With hLabel
+    .Height = 20
+    .Width = Widths[2]
+    .Text = "Att."
+    .Alignment = 3
+  End With
+  
+  hLabel = New Label(hHeader)
+  With hLabel
+    .Height = 20
+    .Width = Widths[3]
+    .Text = "Load"
+    .Alignment = 3
+  End With
+  
+  hLabel = New Label(hHeader)
+  With hLabel
+    .Height = 20
+    .Width = Widths[4]
+    .Text = "Exec"
+    .Alignment = 3
+  End With
+  
+  hLabel = New Label(hHeader)
+  With hLabel
+    .Height = 20
+    .Width = Widths[5]
+    .Text = "Size"
+    .Alignment = 3
+  End With
+  
+  hLabel = New Label(hHeader)
+  With hLabel
+    .Height = 20
+    .Width = Widths[6]
+    .Text = "Sector"
+    .Alignment = 3
+  End With
+  
+  'File List
+  For count = 0 To (SSD.GetNumFiles()) - 1
+    hPanel[Count] = New Panel(ScrollView1) As "Panel"
+    With hPanel[Count]
+      .height = 20
+      .Arrangement = 4
+      .tag = Str$(Count)
+    End With 
+    
+    hTextBox = New TextBox(HPanel[Count]) As "Directory"  
+    With hTextBox
+      .Width = Widths[0]
+      .height = 20
+      .Text = SSD.GetDirectory(Count)
+      .Border = False
+      .Background = &FFFFFF
+      .Alignment = 3
+      .MaxLength = 1
+      .tag = Str$(Count)
+    End With
+    
+    hTextBox = New TextBox(HPanel[Count]) As "FileName"  
+    With hTextBox
+      .Width = Widths[1]
+      .height = 20
+      .Text = SSD.GetFileName(Count)
+      .Border = False
+      .Background = &FFFFFF
+      .MaxLength = 8
+      .tag = Str$(Count)
+    End With
+    
+    hTextBox = New MaskBox(HPanel[Count]) As "Att"
+    With hTextBox
+      .Width = Widths[2]
+      .height = 20
+      .Text = SSD.GetAtt(Count)
+      .Border = False
+      .Background = &FFFFFF
+      .Alignment = 3
+      .MaxLength = 1
+      .tag = Str$(Count)
+    End With
+    
+    hMaskBox = New MaskBox(HPanel[Count]) As "LoadT"  
+    With hMaskBox
+      .Width = Widths[3]
+      .height = 20
+      .Text = Hex$(SSD.GetLoad(Count), 6)
+      .Border = False
+      .Background = &FFFFFF
+      .Alignment = 3
+      .MaxLength = 6
+      .tag = Str$(Count)
+      .Mask = "[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]"
+    End With
+    
+    hMaskBox = New MaskBox(HPanel[Count]) As "Exec"  
+    With hMaskBox
+      .Width = Widths[4]
+      .height = 20
+      .Text = Hex$(SSD.GetExec(Count), 6)
+      .Border = False
+      .Background = &FFFFFF
+      .Alignment = 3
+      .MaxLength = 6
+      .tag = Str$(Count)
+      .Mask = "[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]"
+    End With
+    
+    hTextBox = New TextBox(HPanel[Count]) As "Size"  
+    With hTextBox
+      .Width = Widths[5]
+      .height = 20
+      .Text = Hex$(SSD.GetSize(Count), 6)
+      .Border = False
+      .Background = &FFFFFF
+      .Alignment = 3
+      .Enabled = False
+    End With
+    
+    hTextBox = New TextBox(HPanel[Count]) As "Sector"  
+    With hTextBox
+      .Width = Widths[6]
+      .height = 20
+      .Text = Hex$(SSD.GetSector(Count), 3)
+      .Border = False
+      .Background = &FFFFFF
+      .Alignment = 3
+      .Enabled = False
+    End With
+  Next
+  
+End
+
+Public Sub ComboBox1_Change()
+  
+End
+
+Public Sub DisplayDiskData()
+  
+  Dim Count As Integer
+  Dim TotalFiles As Integer
+  Dim TotalSize As Integer
+  Dim FileSize As Integer
+  
+  TotalFiles = SSD.GetNumFiles()
+  'Number of files
+  FilesLabel.Text = Str$(TotalFiles) & " Files"
+  'Boot Option
+  ComboBox1.Index = SSD.GetBootOpt()
+  'Calculate disk space 
+  TotalSize = 512 'Directory Sectors
+  For Count = 0 To TotalFiles - 1
+    FileSize = SSD.GetSize(Count)
+    TotalSize = TotalSize + SSD.FSizeToSectors(FileSize) * 256
+  Next
+  UsedLabel.Text = Str$(TotalSize) & " bytes used" 
+  FreeLabel.Text = Str(204800 - TotalSize) & " bytes free"
+  
+End

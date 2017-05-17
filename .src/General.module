@@ -1,0 +1,5 @@
+' Gambas module file
+
+Public CurrentFile As String 'Current MMB file
+Public TMPFile As String     'Temporary working file
+Public CurrentSSD As Integer 'Current selected SSD image

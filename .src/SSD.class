@@ -1,0 +1,145 @@
+' Gambas class file
+
+Public Struct SFileName
+  Fname[7] As Byte
+  Directory As Byte
+End Struct
+
+Public Struct SFileDetails
+  LoadLo As Byte
+  LoadMid As Byte 
+  ExeLo As Byte
+  ExeMid As Byte
+  SizeLo As Byte
+  SizeMid As Byte
+  BitsHi As Byte
+  Sector As Byte
+End Struct
+
+Public Struct SDirectory
+  DName1[8] As Byte
+  SFileName[31] As SFileName
+  DName2[4] As Byte
+  WCycle As Byte
+  NFiles As Byte
+  Opt_SectorHi As Byte
+  SectorLo As Byte
+  SFileDetails[31] As SFileDetails
+End Struct
+
+Private Dir_Data As SDirectory
+
+Public Sub LoadDirectory(SSDNumber As Integer)
+  
+  Dim hFile As Stream
+  Dim Count As Integer
+  
+  hFile = Open General.TMPFile For Read
+  Seek #hFile, (SSDNumber * 204800) + 8192
+  Dir_Data = Read #hFile As SDirectory
+  Close #hFile
+  
+End
+
+Public Function BytesToString(bArray As Byte[], bLength As Integer) As String
+  
+  Dim OutString As String
+  Dim Count As Integer
+  
+  For count = 0 To bLength - 1
+    OutString = OutString & Chr$(bArray[Count])
+  Next
+  Return OutString
+  
+End
+
+Public Function GetDirectory(FileNumber As Integer) As String
+  
+  Return Chr$(Dir_Data.SFileName[FileNumber].Directory And &7F) 'Mask off high bit (used as Read Only Flag) 
+  
+End
+
+Public Function GetFileName(FileNumber As Integer) As String
+  
+  Return BytesToString(Dir_Data.SFileName[FileNumber].Fname, 7)
+  
+End
+
+Public Function GetAtt(FileNumber As Integer) As String
+  
+  Dim AttText As String
+  
+  AttText = ""
+  If (Dir_Data.SFileName[FileNumber].Directory And &80) = True Then AttText = "L" 'High bit Read Only Flag
+  Return AttText
+  
+End
+
+Public Function GetLoad(FileNumber As Integer) As Integer
+  
+  Dim Addr As Integer
+  
+  If (Lsr(Dir_Data.SFileDetails[FileNumber].BitsHi, 2) And &03) Then Addr = Addr + &FF0000 ' if MSBs >0 then display as FF
+  Addr = Addr + Dir_Data.SFileDetails[FileNumber].LoadMid * 256
+  Addr = Addr + Dir_Data.SFileDetails[FileNumber].LoadLo
+  Return Addr
+  
+End
+
+Public Function GetExec(FileNumber As Integer) As Integer
+  
+  Dim Addr As Integer
+  
+  If (Lsr(Dir_Data.SFileDetails[FileNumber].BitsHi, 6) And &03) Then Addr = Addr + &FF0000 ' if MSBs >0 then display as FF
+  Addr = Addr + Dir_Data.SFileDetails[FileNumber].ExeMid * 256
+  Addr = Addr + Dir_Data.SFileDetails[FileNumber].ExeLo
+  Return Addr
+  
+End
+
+Public Function GetSize(FileNumber As Integer) As Integer
+  
+  Dim Addr As Integer
+  
+  Addr = (Lsr(Dir_Data.SFileDetails[FileNumber].BitsHi, 4) And &03) * 65536
+  Addr = Addr + Dir_Data.SFileDetails[FileNumber].SizeMid * 256
+  Addr = Addr + Dir_Data.SFileDetails[FileNumber].SizeLo
+  Return Addr
+  
+End
+
+Public Function GetSector(FileNumber As Integer) As Integer
+  
+  Dim Addr As Integer
+  
+  Addr = Addr + (Dir_Data.SFileDetails[FileNumber].BitsHi And &03) * 256
+  Addr = Addr + Dir_Data.SFileDetails[FileNumber].Sector
+  Return Addr
+  
+End
+
+Public Function GetTitle() As String
+  
+  Return BytesToString(Dir_Data.DName1, 8) & BytesToString(Dir_Data.DName2, 4)
+  
+End
+
+Public Function GetNumFiles() As Integer
+  
+  Return Dir_Data.NFiles / 8
+  
+End
+
+Public Function GetBootOpt() As Integer
+  
+  Return Lsr(Dir_Data.Opt_SectorHi, 4) And &03
+  
+End
+
+Public Function FSizeToSectors(Size As Integer) As Integer
+  'Round-up to nearest multiple of 256
+  
+  If (Size % 256) Then Size = Size + 256
+  Return (Size Div 256) 
+  
+End

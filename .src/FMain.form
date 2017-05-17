@@ -46,8 +46,11 @@
       Text = ("SSD Export")
       Enabled = False
     }
+    { SSDEdit Menu
+      Text = ("Edit SSD")
+    }
     { SSDFormat Menu
-      Text = ("Format Disk")
+      Text = ("Format SSD")
     }
   }
   { MenuHelp Menu
