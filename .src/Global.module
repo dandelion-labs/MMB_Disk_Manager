@@ -3,3 +3,5 @@
 Public CurrentFile As String 'Current MMB file
 Public TMPFile As String     'Temporary working file
 Public CurrentSSD As Integer 'Current selected SSD image
+Public SSDSize As Integer = 204800 'Size of SSD in bytes
+Public SSDOffset As Integer = 8192 'Offset of first SSD image in MMB file

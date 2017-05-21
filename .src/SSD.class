@@ -32,11 +32,21 @@ Private Dir_Data As SDirectory
 Public Sub LoadDirectory(SSDNumber As Integer)
   
   Dim hFile As Stream
-  Dim Count As Integer
   
-  hFile = Open General.TMPFile For Read
-  Seek #hFile, (SSDNumber * 204800) + 8192
+  hFile = Open Global.TMPFile For Read
+  Seek #hFile, (SSDNumber * Global.SSDSize) + Global.SSDOffset
   Dir_Data = Read #hFile As SDirectory
+  Close #hFile
+  
+End
+
+Public Sub SaveDirectory(SSDNumber As Integer)
+  
+  Dim hFile As Stream
+  
+  hFile = Open Global.TMPFile For Write
+  Seek #hFile, (SSDNumber * Global.SSDSize) + Global.SSDOffset
+  Write #hFile, Dir_Data As SDirectory
   Close #hFile
   
 End
@@ -55,13 +65,44 @@ End
 
 Public Function GetDirectory(FileNumber As Integer) As String
   
-  Return Chr$(Dir_Data.SFileName[FileNumber].Directory And &7F) 'Mask off high bit (used as Read Only Flag) 
+  Return Chr$(Dir_Data.SFileName[FileNumber].Directory And &7F) 'Mask off MSB (used as Read Only Flag) 
+  
+End
+
+Public Sub SetDirectory(FileNumber As Integer, Directory As String)
+  'Replace illegal chars
+  
+  Directory = Replace$(Directory, ":", "_")
+  Directory = Replace$(Directory, ".", "_")
+  Directory = Replace$(Directory, "#", "_")
+  Directory = Replace$(Directory, "*", "_")
+  Dir_Data.SFileName[FileNumber].Directory = Dir_Data.SFileName[FileNumber].Directory And &80 'Clear lower 7 bits - MSB is Read Only Flag
+  Dir_Data.SFileName[FileNumber].Directory = Dir_Data.SFileName[FileNumber].Directory Or (Asc(Directory) And &7f) 
   
 End
 
 Public Function GetFileName(FileNumber As Integer) As String
   
   Return BytesToString(Dir_Data.SFileName[FileNumber].Fname, 7)
+  
+End
+
+Public Sub SetFileName(FileNumber As Integer, FileName As String)
+  
+  Dim Count As Integer
+  
+  FileName = Trim$(FileName)
+  'Replace illegal chars
+  FileName = Replace$(FileName, ":", "_")
+  FileName = Replace$(FileName, ".", "_")
+  FileName = Replace$(FileName, "#", "_")
+  FileName = Replace$(FileName, "*", "_")
+  For Count = 0 To 6
+    Dir_Data.SFileName[FileNumber].Fname[Count] = Asc(" ") 'Blank Pad FileName"
+  Next
+  For Count = 0 To Len(FileName) - 1
+    Dir_Data.SFileName[FileNumber].Fname[Count] = Asc(FileName, Count + 1)
+  Next
   
 End
 
@@ -72,6 +113,10 @@ Public Function GetAtt(FileNumber As Integer) As String
   AttText = ""
   If (Dir_Data.SFileName[FileNumber].Directory And &80) = True Then AttText = "L" 'High bit Read Only Flag
   Return AttText
+  
+End
+
+Public Sub SetAtt(FileNumber As Integer, Att As Integer)
   
 End
 
@@ -86,6 +131,15 @@ Public Function GetLoad(FileNumber As Integer) As Integer
   
 End
 
+Public Sub SetLoad(FileNumber As Integer, Value As Integer)
+  
+  Dir_Data.SFileDetails[FileNumber].BitsHi = Dir_Data.SFileDetails[FileNumber].BitsHi And &F3 'Clear bits 2,3
+  If (Value And &FF0000) Then Dir_Data.SFileDetails[FileNumber].BitsHi = Dir_Data.SFileDetails[FileNumber].BitsHi Or &C 'Set bits 2,3
+  Dir_Data.SFileDetails[FileNumber].LoadMid = Lsr(Value, 8) And &FF
+  Dir_Data.SFileDetails[FileNumber].LoadLo = Value And &FF
+  
+End
+
 Public Function GetExec(FileNumber As Integer) As Integer
   
   Dim Addr As Integer
@@ -94,6 +148,15 @@ Public Function GetExec(FileNumber As Integer) As Integer
   Addr = Addr + Dir_Data.SFileDetails[FileNumber].ExeMid * 256
   Addr = Addr + Dir_Data.SFileDetails[FileNumber].ExeLo
   Return Addr
+  
+End
+
+Public Sub SetExec(FileNumber As Integer, Value As Integer)
+  
+  Dir_Data.SFileDetails[FileNumber].BitsHi = Dir_Data.SFileDetails[FileNumber].BitsHi And &3F 'Clear bits 6,7
+  If (Value And &FF0000) Then Dir_Data.SFileDetails[FileNumber].BitsHi = Dir_Data.SFileDetails[FileNumber].BitsHi Or &C0 'Set bits 6,7
+  Dir_Data.SFileDetails[FileNumber].ExeMid = Lsr(Value, 8) And &FF
+  Dir_Data.SFileDetails[FileNumber].ExeLo = Value And &FF  
   
 End
 
@@ -108,6 +171,10 @@ Public Function GetSize(FileNumber As Integer) As Integer
   
 End
 
+Public Sub SetSize(FileNumber As Integer, Value As Integer)
+  
+End
+
 Public Function GetSector(FileNumber As Integer) As Integer
   
   Dim Addr As Integer
@@ -118,9 +185,17 @@ Public Function GetSector(FileNumber As Integer) As Integer
   
 End
 
+Public Sub SetSector(FileNumber As Integer, Value As Integer)
+  
+End
+
 Public Function GetTitle() As String
   
   Return BytesToString(Dir_Data.DName1, 8) & BytesToString(Dir_Data.DName2, 4)
+  
+End
+
+Public Sub SetTitle(FileNumber As Integer, Title As String)
   
 End
 
@@ -130,9 +205,22 @@ Public Function GetNumFiles() As Integer
   
 End
 
+Public Sub SetNumFiles(Files As Integer)
+  
+  Dir_Data.NFiles = Files * 8
+  
+End
+
 Public Function GetBootOpt() As Integer
   
   Return Lsr(Dir_Data.Opt_SectorHi, 4) And &03
+  
+End
+
+Public Function SetBootOpt(BootOpt As Integer)
+  
+  Dir_Data.Opt_SectorHi = Dir_Data.Opt_SectorHi And &CF 'Clear bits 4,5
+  Dir_Data.Opt_SectorHi = Dir_Data.Opt_SectorHi Or (Lsl(BootOpt And &03, 4)) 'Write new bits 4,5
   
 End
 

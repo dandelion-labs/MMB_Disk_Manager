@@ -2,26 +2,33 @@
 
 Public hPanel As New Panel[31]
 Public SSD As New SSD
+Private IsLocked As Boolean
+Private HasChanged As Boolean
 
 Public Sub Form_Open()
   
-  SSD.LoadDirectory(General.CurrentSSD)
-  Me.Text = "SSD: " & Str$(General.CurrentSSD) & " - " & SSD.GetTitle()
+  Dim SSDTitle As String
+  
+  HasChanged = False
+  IsLocked = True 'Flag used to indicate events to be ignored
+  SSD.LoadDirectory(Global.CurrentSSD)
+  SSDTitle = SSD.GetTitle()
+  If Asc(SSDTitle, 1) = 0 Then SSDTitle = "(No Title)"
+  Me.Text = "SSD: " & Str$(Global.CurrentSSD) & " - " & SSDTitle
   PopulateFileList()
   DisplayDiskData()
+  IsLocked = False
   
 End
 
 Public Sub PopulateFileList()
   
   Dim Count As Integer
-  Dim TotalWidth As Integer
   Dim hHeader As Panel
   Dim hLabel As Label
   Dim hMaskBox As MaskBox
   Dim hTextBox As TextBox
   Dim Widths As New Integer[7]
-  Dim AttText As String
   
   Widths[0] = 25 'Directory
   Widths[1] = 80 'File Name
@@ -32,7 +39,7 @@ Public Sub PopulateFileList()
   Widths[6] = 45 'Sector
   
   'Header
-  hHeader = New Panel(ScrollView1)
+  hHeader = New Panel(FileList1)
   With hHeader
     .height = 20
     .Arrangement = 4
@@ -94,18 +101,18 @@ Public Sub PopulateFileList()
     .Text = "Sector"
     .Alignment = 3
   End With
-  
+  ' 
   'File List
   For count = 0 To (SSD.GetNumFiles()) - 1
-    hPanel[Count] = New Panel(ScrollView1) As "Panel"
+    hPanel[Count] = New Panel(FileList1) As "Panel"
     With hPanel[Count]
       .height = 20
       .Arrangement = 4
       .tag = Str$(Count)
     End With 
     
-    hTextBox = New TextBox(HPanel[Count]) As "Directory"  
-    With hTextBox
+    hMaskBox = New MaskBox(hPanel[Count]) As "Directory"  
+    With hMaskBox
       .Width = Widths[0]
       .height = 20
       .Text = SSD.GetDirectory(Count)
@@ -114,21 +121,22 @@ Public Sub PopulateFileList()
       .Alignment = 3
       .MaxLength = 1
       .tag = Str$(Count)
+      
     End With
     
-    hTextBox = New TextBox(HPanel[Count]) As "FileName"  
-    With hTextBox
+    hMaskBox = New MaskBox(hPanel[Count]) As "FileName"  
+    With hMaskBox
       .Width = Widths[1]
       .height = 20
       .Text = SSD.GetFileName(Count)
       .Border = False
       .Background = &FFFFFF
-      .MaxLength = 8
+      .MaxLength = 7
       .tag = Str$(Count)
     End With
     
-    hTextBox = New MaskBox(HPanel[Count]) As "Att"
-    With hTextBox
+    hMaskBox = New MaskBox(hPanel[Count]) As "Att"
+    With hMaskBox
       .Width = Widths[2]
       .height = 20
       .Text = SSD.GetAtt(Count)
@@ -139,7 +147,7 @@ Public Sub PopulateFileList()
       .tag = Str$(Count)
     End With
     
-    hMaskBox = New MaskBox(HPanel[Count]) As "LoadT"  
+    hMaskBox = New MaskBox(hPanel[Count]) As "LoadT"  
     With hMaskBox
       .Width = Widths[3]
       .height = 20
@@ -150,9 +158,10 @@ Public Sub PopulateFileList()
       .MaxLength = 6
       .tag = Str$(Count)
       .Mask = "[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]"
+      
     End With
     
-    hMaskBox = New MaskBox(HPanel[Count]) As "Exec"  
+    hMaskBox = New MaskBox(hPanel[Count]) As "Exec"  
     With hMaskBox
       .Width = Widths[4]
       .height = 20
@@ -165,7 +174,7 @@ Public Sub PopulateFileList()
       .Mask = "[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]"
     End With
     
-    hTextBox = New TextBox(HPanel[Count]) As "Size"  
+    hTextBox = New TextBox(hPanel[Count]) As "Size"  
     With hTextBox
       .Width = Widths[5]
       .height = 20
@@ -176,7 +185,7 @@ Public Sub PopulateFileList()
       .Enabled = False
     End With
     
-    hTextBox = New TextBox(HPanel[Count]) As "Sector"  
+    hTextBox = New TextBox(hPanel[Count]) As "Sector"  
     With hTextBox
       .Width = Widths[6]
       .height = 20
@@ -190,7 +199,43 @@ Public Sub PopulateFileList()
   
 End
 
-Public Sub ComboBox1_Change()
+Public Sub ComboBox1_Click()
+  
+  If IsLocked Then Return 'Ignore Event
+  SSD.SetBootOpt(Last.Index)
+  HasChanged = True
+  
+End
+
+Public Sub FileName_Change()
+  
+  If IsLocked Then Return 'Ignore Event
+  SSD.SetFileName(Last.Tag, Last.Text)
+  HasChanged = True
+  
+End
+
+Public Sub LoadT_Change()
+  
+  If IsLocked Then Return 'Ignore Event
+  SSD.SetLoad(Last.Tag, Val("&H" & Last.Text))
+  HasChanged = True
+  
+End
+
+Public Sub Exec_Change()
+  
+  If IsLocked Then Return 'Ignore Event
+  SSD.SetExec(Last.Tag, Val("&H" & Last.Text))
+  HasChanged = True
+  
+End
+
+Public Sub Directory_Change()
+  
+  If IsLocked Then Return 'Ignore Event
+  SSD.SetDirectory(Last.Tag, Last.Text)
+  HasChanged = True
   
 End
 
@@ -213,6 +258,27 @@ Public Sub DisplayDiskData()
     TotalSize = TotalSize + SSD.FSizeToSectors(FileSize) * 256
   Next
   UsedLabel.Text = Str$(TotalSize) & " bytes used" 
-  FreeLabel.Text = Str(204800 - TotalSize) & " bytes free"
+  FreeLabel.Text = Str(Global.SSDSize - TotalSize) & " bytes free"
+  
+End
+
+Public Sub Form_Close()
+  
+  If (HasChanged) Then 
+    SSD.SaveDirectory(Global.CurrentSSD)
+    FMain.HasMMBChanged = True
+  Endif
+  
+End
+
+Public Sub LoadT_LostFocus()
+  
+  Last.Text = UCase$(Hex$(SSD.GetLoad(Last.Tag), 6))
+  
+End
+
+Public Sub Exec_LostFocus()
+  
+  Last.Text = UCase$(Hex$(SSD.GetExec(Last.Tag), 6))
   
 End

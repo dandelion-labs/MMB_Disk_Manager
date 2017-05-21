@@ -3,13 +3,14 @@
 Title=MMB Disk Manager
 Startup=FMain
 Icon=floppy.png
-Version=0.0.8
+Version=0.0.25
 Component=gb.image
-Component=gb.gui
+Component=gb.qt4
 Component=gb.form
 Environment="GB_GUI=gb.qt4"
 TabSize=2
 Language=en_GB
+KeepDebugInfo=0
 Maintainer=Jason Lucas
 Address=spookyconnection@virginmedia.com
 License=General Public License

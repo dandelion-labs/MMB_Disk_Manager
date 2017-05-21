@@ -1,13 +1,26 @@
 # Gambas Form File 3.0
 
 { Form Form
-  MoveScaled(0,0,59,49)
-  { !ScrollView1 ScrollView
+  MoveScaled(0,0,59,48)
+  { FileList1 ScrollView
     MoveScaled(3,9,53,29)
-    #Public = True
     Background = Color.White
     Arrangement = Arrange.Vertical
     ScrollBar = Scroll.Vertical
+  }
+  { FilesLabel Label
+    MoveScaled(3,38,53,3)
+    Font = Font["DejaVu Sans,9"]
+    Border = Border.Sunken
+  }
+  { UsedLabel Label
+    MoveScaled(19,38,18,3)
+    Font = Font["DejaVu Sans,9"]
+    Border = Border.Plain
+  }
+  { Label1 Label
+    MoveScaled(25,2,11,4)
+    Text = ("Boot Option:")
   }
   { !ComboBox1 ComboBox
     MoveScaled(36,2,20,4)
@@ -15,17 +28,8 @@
     ReadOnly = True
     List = [("Option 0 (Off)"), ("Option 1 (Load)"), ("Option 2 (Run)"), ("Option 3 (Exec)")]
   }
-  { Label1 Label
-    MoveScaled(25,2,11,4)
-    Text = ("Boot Option:")
-  }
-  { UsedLabel Label
-    MoveScaled(3,41,18,3)
-    Font = Font["DejaVu Sans,9"]
-    Border = Border.Plain
-  }
   { FreeLabel Label
-    MoveScaled(21,41,18,3)
+    MoveScaled(37,38,19,3)
     Font = Font["DejaVu Sans,9"]
     Border = Border.Plain
   }
@@ -33,10 +37,5 @@
     MoveScaled(39,41,17,3)
     Font = Font["DejaVu Sans,9"]
     Border = Border.Plain
-  }
-  { FilesLabel Label
-    MoveScaled(3,38,53,3)
-    Font = Font["DejaVu Sans,9"]
-    Border = Border.Sunken
   }
 }
