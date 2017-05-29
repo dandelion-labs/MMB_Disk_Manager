@@ -28,6 +28,7 @@ Public Struct SDirectory
 End Struct
 
 Private Dir_Data As SDirectory
+Private MaxFiles As Integer = 31
 
 Public Sub LoadDirectory(SSDNumber As Integer)
   
@@ -111,12 +112,19 @@ Public Function GetAtt(FileNumber As Integer) As String
   Dim AttText As String
   
   AttText = ""
-  If (Dir_Data.SFileName[FileNumber].Directory And &80) = True Then AttText = "L" 'High bit Read Only Flag
+  If (Dir_Data.SFileName[FileNumber].Directory And &80) = &80 Then AttText = "L" 'High bit Read Only Flag
   Return AttText
   
 End
 
-Public Sub SetAtt(FileNumber As Integer, Att As Integer)
+Public Sub SetAtt(FileNumber As Integer)
+  'Toggle Att Bit
+  
+  If (Dir_Data.SFileName[FileNumber].Directory And &80) = &80 Then
+    Dir_Data.SFileName[FileNumber].Directory = BClr(Dir_Data.SFileName[FileNumber].Directory, 7)
+  Else
+    Dir_Data.SFileName[FileNumber].Directory = BSet(Dir_Data.SFileName[FileNumber].Directory, 7)
+  Endif  
   
 End
 
@@ -229,5 +237,47 @@ Public Function FSizeToSectors(Size As Integer) As Integer
   
   If (Size % 256) Then Size = Size + 256
   Return (Size Div 256) 
+  
+End
+
+Public Sub DeleteFile(FileNumber As Integer)
+  
+  Dim Count As Integer
+  Dim NumFiles As Integer
+  'TODO Zero File Data
+  NumFiles = GetNumFiles()
+  For Count = FileNumber To NumFiles - 1
+    Dir_Data.SFileName[Count] = Dir_Data.SFileName[Count + 1]
+    Dir_Data.SFileDetails[Count] = Dir_Data.SFileDetails[Count + 1]
+  Next
+  Dir_Data.SFileName[NumFiles] = New SFileName
+  Dir_Data.SFileDetails[NumFiles] = New SFileDetails
+  SetNumFiles(NumFiles - 1)
+  
+End
+
+Public Sub ExportFile(SSDNumber As Integer, FileNumber As Integer, FilePath As String)
+  
+  Dim hFile, hFileRead As Stream
+  Dim Count As Integer
+  
+  Try Kill FilePath & ".INF"
+  Try Kill FilePath
+  'Save .INF File
+  hFile = Open FilePath & ".INF" For Create
+  Print #hFile, GetDirectory(FileNumber) & "." & GetFileName(FileNumber) & "  ";
+  Print #hFile, Hex$(GetLoad(FileNumber), 6) & " ";
+  Print #hFile, Hex$(GetExec(FileNumber), 6) & " ";
+  Print #hFile, Hex$(GetSize(FileNumber), 6) & " ";
+  Close #hFile
+  'Save Data
+  hFileRead = Open Global.TMPFile For Read
+  hFile = Open FilePath For Create
+  Seek #hFileRead, (SSDNumber * Global.SSDSize) + Global.SSDOffset + (GetSector(FileNumber) * 256)
+  For Count = 1 To GetSize(FileNumber)
+    Write #hFile, Read #hFileRead As Byte As Byte
+  Next
+  Close #hFile
+  Close hFileRead
   
 End

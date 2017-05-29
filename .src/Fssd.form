@@ -2,6 +2,19 @@
 
 { Form Form
   MoveScaled(0,0,59,48)
+  { MenuFile Menu
+    Text = Shortcut(("File"), "F")
+    { MenuImport Menu
+      Text = ("Import File")
+    }
+    { MenuExport Menu
+      Text = ("Export File")
+    }
+    { MenuDelete Menu
+      Text = ("Delete File")
+      Shortcut = "Ctrl+D"
+    }
+  }
   { FileList1 ScrollView
     MoveScaled(3,9,53,29)
     Background = Color.White

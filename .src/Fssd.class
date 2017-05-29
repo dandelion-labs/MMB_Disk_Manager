@@ -1,9 +1,12 @@
 ' Gambas class file
 
 Public hPanel As New Panel[31]
+Public hHeader As Panel 'Defined here as the object needs to be deleted at times
 Public SSD As New SSD
 Private IsLocked As Boolean
 Private HasChanged As Boolean
+Private CurrentFile As Integer
+Private CurrentSSD As Integer = Global.CurrentSSD
 
 Public Sub Form_Open()
   
@@ -11,10 +14,10 @@ Public Sub Form_Open()
   
   HasChanged = False
   IsLocked = True 'Flag used to indicate events to be ignored
-  SSD.LoadDirectory(Global.CurrentSSD)
+  SSD.LoadDirectory(CurrentSSD)
   SSDTitle = SSD.GetTitle()
   If Asc(SSDTitle, 1) = 0 Then SSDTitle = "(No Title)"
-  Me.Text = "SSD: " & Str$(Global.CurrentSSD) & " - " & SSDTitle
+  Me.Text = "SSD: " & Str$(CurrentSSD) & " - " & SSDTitle
   PopulateFileList()
   DisplayDiskData()
   IsLocked = False
@@ -24,7 +27,7 @@ End
 Public Sub PopulateFileList()
   
   Dim Count As Integer
-  Dim hHeader As Panel
+  Dim NumFiles As Integer
   Dim hLabel As Label
   Dim hMaskBox As MaskBox
   Dim hTextBox As TextBox
@@ -103,7 +106,8 @@ Public Sub PopulateFileList()
   End With
   ' 
   'File List
-  For count = 0 To (SSD.GetNumFiles()) - 1
+  NumFiles = SSD.GetNumFiles() - 1
+  For count = 0 To NumFiles 
     hPanel[Count] = New Panel(FileList1) As "Panel"
     With hPanel[Count]
       .height = 20
@@ -135,15 +139,14 @@ Public Sub PopulateFileList()
       .tag = Str$(Count)
     End With
     
-    hMaskBox = New MaskBox(hPanel[Count]) As "Att"
-    With hMaskBox
+    hLabel = New Label(hPanel[Count]) As "Att"
+    With hLabel
       .Width = Widths[2]
       .height = 20
       .Text = SSD.GetAtt(Count)
       .Border = False
       .Background = &FFFFFF
       .Alignment = 3
-      .MaxLength = 1
       .tag = Str$(Count)
     End With
     
@@ -183,6 +186,7 @@ Public Sub PopulateFileList()
       .Background = &FFFFFF
       .Alignment = 3
       .Enabled = False
+      .tag = Str$(Count)
     End With
     
     hTextBox = New TextBox(hPanel[Count]) As "Sector"  
@@ -194,8 +198,18 @@ Public Sub PopulateFileList()
       .Background = &FFFFFF
       .Alignment = 3
       .Enabled = False
+      .tag = Str$(Count)
     End With
   Next
+  
+  'Highlight current file
+  If (NumFiles > -1) Then
+    If (CurrentFile > NumFiles) Then CurrentFile = NumFiles
+    hPanel[CurrentFile].Background = &H9AD297 'Greenish
+    For Count = 0 To 6
+      hPanel[CurrentFile].Children[Count].Background = &H9AD297
+    Next 
+  Endif
   
 End
 
@@ -215,11 +229,23 @@ Public Sub FileName_Change()
   
 End
 
+Public Sub FileName_MouseDown()
+  
+  SetCurrentFile(Last.Tag)
+  
+End
+
 Public Sub LoadT_Change()
   
   If IsLocked Then Return 'Ignore Event
   SSD.SetLoad(Last.Tag, Val("&H" & Last.Text))
   HasChanged = True
+  
+End
+
+Public Sub LoadT_MouseDown()
+  
+  SetCurrentFile(Last.Tag)
   
 End
 
@@ -231,11 +257,61 @@ Public Sub Exec_Change()
   
 End
 
+Public Sub Exec_MouseDown()
+  
+  SetCurrentFile(Last.Tag)
+  
+End
+
 Public Sub Directory_Change()
   
   If IsLocked Then Return 'Ignore Event
   SSD.SetDirectory(Last.Tag, Last.Text)
   HasChanged = True
+  
+End
+
+Public Sub Directory_MouseDown()
+  
+  SetCurrentFile(Last.Tag)
+  
+End
+
+Public Sub Att_MouseDown()
+  
+  SSD.SetAtt(Last.Tag)
+  Last.Text = SSD.GetAtt(Last.Tag)
+  SetCurrentFile(Last.Tag)
+  
+End
+
+Public Sub Size_MouseDown()
+  
+  SetCurrentFile(Last.Tag)
+  
+End
+
+Public Sub Sector_MouseDown()
+  
+  SetCurrentFile(Last.Tag)
+  
+End
+
+Public Sub SetCurrentFile(CF As Integer)
+  
+  Dim Count As Integer
+  
+  If CF <> CurrentFile Then
+    hPanel[CurrentFile].Background = &FFFFFF
+    For Count = 0 To 6
+      hPanel[CurrentFile].Children[Count].Background = &FFFFFF
+    Next 
+    CurrentFile = CF
+    hPanel[CurrentFile].Background = &H9AD297 'Greenish
+    For Count = 0 To 6
+      hPanel[CurrentFile].Children[Count].Background = &H9AD297
+    Next 
+  Endif
   
 End
 
@@ -280,5 +356,38 @@ End
 Public Sub Exec_LostFocus()
   
   Last.Text = UCase$(Hex$(SSD.GetExec(Last.Tag), 6))
+  
+End
+
+Public Sub MenuDelete_Click()
+  
+  Dim Count As Integer
+  'Delete the file
+  SSD.DeleteFile(CurrentFile)
+  'Delete the Filelist Display
+  hHeader.Delete
+  For Count = 0 To SSD.GetNumFiles()
+    hPanel[Count].Delete
+  Next
+  'Refresh the Filelist Display
+  IsLocked = True
+  PopulateFileList()
+  DisplayDiskData()
+  IsLocked = False
+  
+End
+
+Public Sub MenuImport_Click()
+  
+End
+
+Public Sub MenuExport_Click()
+  
+  Dialog.Filter = []
+  Dialog.Path = "./" & SSD.GetDirectory(CurrentFile) & "." & Trim$(SSD.GetFileName(CurrentFile))
+  If Dialog.SaveFile() Then
+    Return ' User pressed Cancel -
+  Endif
+  SSD.ExportFile(CurrentSSD, CurrentFile, Dialog.Path)
   
 End

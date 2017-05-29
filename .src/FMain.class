@@ -347,7 +347,6 @@ Public Sub FileSave_Click()
   Try Kill Global.CurrentFile
   If Error Then
     Message.Error(Error.text)
-    'Print Error.text
     Return
   Endif
   Copy Global.TMPFile To Global.CurrentFile
