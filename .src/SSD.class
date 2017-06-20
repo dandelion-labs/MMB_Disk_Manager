@@ -27,6 +27,10 @@ Public Struct SDirectory
   SFileDetails[31] As SFileDetails
 End Struct
 
+Public Struct Sector
+  Data[256] As Byte
+End Struct
+
 Private Dir_Data As SDirectory
 Private MaxFiles As Integer = 31
 
@@ -180,7 +184,8 @@ Public Function GetSize(FileNumber As Integer) As Integer
 End
 
 Public Sub SetSize(FileNumber As Integer, Value As Integer)
-  
+  'TODO
+
 End
 
 Public Function GetSector(FileNumber As Integer) As Integer
@@ -194,6 +199,10 @@ Public Function GetSector(FileNumber As Integer) As Integer
 End
 
 Public Sub SetSector(FileNumber As Integer, Value As Integer)
+  
+  Dir_Data.SFileDetails[FileNumber].BitsHi = Dir_Data.SFileDetails[FileNumber].BitsHi And &FC 'Clear bits 0,1
+  Dir_Data.SFileDetails[FileNumber].BitsHi = Dir_Data.SFileDetails[FileNumber].BitsHi Or ((Value Div 256) And &03)
+  Dir_Data.SFileDetails[FileNumber].Sector = Value And &FF
   
 End
 
@@ -210,6 +219,18 @@ End
 Public Function GetNumFiles() As Integer
   
   Return Dir_Data.NFiles / 8
+  
+End
+
+Public Function GetTotalSize() As Integer
+  
+  Dim Count, TotalSize As Integer
+  
+  TotalSize = 512 'Directory Sectors
+  For Count = 0 To GetNumFiles() - 1
+    TotalSize = TotalSize + FSizeToSectors(GetSize(Count)) * 256
+  Next
+  Return TotalSize
   
 End
 
@@ -279,5 +300,87 @@ Public Sub ExportFile(SSDNumber As Integer, FileNumber As Integer, FilePath As S
   Next
   Close #hFile
   Close hFileRead
+  
+End
+
+Public Function ImportFile(SSDNumber As Integer, FilePath As String) As Integer
+  
+  Dim hFileFrom, hFileTo As Stream
+  Dim FileSize, NextFreeSector, Count As Integer
+  Dim DirFile As String[]
+  
+  DirFile = Split(File.Name(FilePath), ".") 'Split the filename
+  If DirFile.Length <> 2 Then Return 1 'There should be two elements (dir & filename)
+  If Len(DirFile[0]) <> 1 Then Return 1 'The Directory should be 1 character
+  If Len(DirFile[1]) > 7 Then Return 1 'Filename should be less than 8 characters
+  
+  With Stat(FilePath)
+    FileSize = .Size
+  End With
+  'Prepare SSD
+  CompactSSD(SSDNumber)
+  'Get next free sector (first file sector + length)
+  NextFreeSector = GetSector(0) + FSizeToSectors(GetSize(0))
+  Print File.Name(FilePath)
+  Print NextFreeSector
+  'Import Data
+  hFileFrom = Open FilePath For Input
+  hFileTo = Open Global.TMPFile For Output
+  Seek #hFileTo, (SSDNumber * Global.SSDSize) + Global.SSDOffset + (NextFreeSector * 256)
+  For Count = 1 To FileSize
+    Write #hFileTo, Read #hFileFrom As Byte As Byte
+  Next
+  Close #hFileTo
+  Close #hFileFrom
+  'Update Catalogue
+  For Count = GetNumFiles() To 1 Step -1
+    Dir_Data.SFileName[Count] = Dir_Data.SFileName[Count - 1]
+    Dir_Data.SFileDetails[Count] = Dir_Data.SFileDetails[Count - 1] 
+  Next
+  Dir_Data.SFileName[0] = New SFileName
+  Dir_Data.SFileDetails[0] = New SFileDetails
+  SetDirectory(0, DirFile[0])
+  SetFileName(0, DirFile[1])
+  SetLoad(0, 0)
+  SetExec(0, 0)
+  SetSize(0, FileSize) 'SetSize() - TODO
+  SetSector(0, NextFreeSector)
+  SetNumFiles(GetNumFiles() + 1)
+  
+  Return 0
+  
+End
+
+Private Sub MoveSectors(SSDNumber As Integer, SecTo As Integer, SecFrom As Integer, SecLength As Integer)
+  
+  Dim hFileTo, hFileFrom As Stream
+  Dim Count As Integer
+  
+  hFileFrom = Open Global.TMPFile For Input
+  hFileTo = Open Global.TMPFile For Output
+  Seek #hFileFrom, (SSDNumber * Global.SSDSize) + Global.SSDOffset + (SecFrom * 256)
+  Seek #hFileTo, (SSDNumber * Global.SSDSize) + Global.SSDOffset + (SecTo * 256)
+  For Count = 1 To SecLength
+    Write #hFileTo, Read #hFileFrom As Sector As Sector
+  Next
+  Close #hFileTo
+  Close #hFileFrom
+  
+End
+
+Public Sub CompactSSD(SSDNumber As Integer)
+  
+  Dim SecStart As Integer
+  Dim Count As Integer
+  
+  SecStart = 2 'First sector after directory
+  For Count = GetNumFiles() - 1 To 0 Step -1
+    If GetSector(Count) <> SecStart Then
+      SetSector(Count, SecStart)
+      MoveSectors(SSDNumber, SecStart, GetSector(Count), FSizeToSectors(GetSize(Count)))
+    Endif
+    SecStart = SecStart + FSizeToSectors(GetSize(Count)) 
+  Next
+  SaveDirectory(SSDNumber)
   
 End

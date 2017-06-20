@@ -1,6 +1,7 @@
 ' Gambas class file
 
-Public hPanel As New Panel[31]
+'Public hPanel As New Panel[31]
+Public hPanel As New Panel[]
 Public hHeader As Panel 'Defined here as the object needs to be deleted at times
 Public SSD As New SSD
 Private IsLocked As Boolean
@@ -41,6 +42,7 @@ Public Sub PopulateFileList()
   Widths[5] = 60 'Size
   Widths[6] = 45 'Sector
   
+  hPanel = New Panel[SSD.GetNumFiles()]
   'Header
   hHeader = New Panel(FileList1)
   With hHeader
@@ -319,7 +321,6 @@ Public Sub DisplayDiskData()
   
   Dim Count As Integer
   Dim TotalFiles As Integer
-  Dim TotalSize As Integer
   Dim FileSize As Integer
   
   TotalFiles = SSD.GetNumFiles()
@@ -328,13 +329,9 @@ Public Sub DisplayDiskData()
   'Boot Option
   ComboBox1.Index = SSD.GetBootOpt()
   'Calculate disk space 
-  TotalSize = 512 'Directory Sectors
-  For Count = 0 To TotalFiles - 1
-    FileSize = SSD.GetSize(Count)
-    TotalSize = TotalSize + SSD.FSizeToSectors(FileSize) * 256
-  Next
-  UsedLabel.Text = Str$(TotalSize) & " bytes used" 
-  FreeLabel.Text = Str(Global.SSDSize - TotalSize) & " bytes free"
+  
+  UsedLabel.Text = Str$(SSD.GetTotalSize()) & " bytes used" 
+  FreeLabel.Text = Str(Global.SSDSize - SSD.GetTotalSize()) & " bytes free"
   
 End
 
@@ -362,11 +359,13 @@ End
 Public Sub MenuDelete_Click()
   
   Dim Count As Integer
+  
+  If Message.Question("Are you sure you want to delete File: " & SSD.GetFileName(CurrentFile) & "?", "OK", "Cancel") = 2 Then Return
   'Delete the file
   SSD.DeleteFile(CurrentFile)
   'Delete the Filelist Display
   hHeader.Delete
-  For Count = 0 To SSD.GetNumFiles()
+  For Count = 0 To HPanel.Length - 1
     hPanel[Count].Delete
   Next
   'Refresh the Filelist Display
@@ -374,10 +373,52 @@ Public Sub MenuDelete_Click()
   PopulateFileList()
   DisplayDiskData()
   IsLocked = False
+  SSD.SaveDirectory(CurrentSSD)
+  HasChanged = True
   
 End
 
 Public Sub MenuImport_Click()
+  
+  Dim FileSize, Count As Integer
+  Dim FileName As String
+  
+  'Get file details
+  If SSD.GetNumFiles() = 31 Then 
+    Message.Error("Cannot import file - Catalogue full")
+    Return
+  Endif
+  Dialog.Filter = ["*", "All Files"]
+  Dialog.Title = "Choose a file"
+  Dialog.Path = "."
+  If Dialog.OpenFile() Then
+    Return ' User pressed Cancel -
+  Endif
+  FileName = Dialog.Path
+  With Stat(FileName)
+    FileSize = .Size
+  End With
+  If SSD.GetTotalSize() < FileSize
+    Message.Error("Cannot import file - File too big")
+    Return
+  Endif
+  'Import 
+  If SSD.ImportFile(CurrentSSD, FileName) Then 
+    Message.Error("Invalid File Name")
+    Return
+  End If
+  'Delete the Filelist Display
+  hHeader.Delete
+  For Count = 0 To hPanel.Length - 1
+    hPanel[Count].Delete
+  Next
+  
+  'Refresh the Filelist Display
+  IsLocked = True
+  PopulateFileList()
+  DisplayDiskData()
+  IsLocked = False
+  HasChanged = True
   
 End
 
@@ -389,5 +430,25 @@ Public Sub MenuExport_Click()
     Return ' User pressed Cancel -
   Endif
   SSD.ExportFile(CurrentSSD, CurrentFile, Dialog.Path)
+  
+End
+
+Public Sub CompactButton_Click()
+  ' TODO Remove or add to Menu options
+  
+  Dim Count As Integer
+  
+  SSD.CompactSSD(CurrentSSD)
+  'Delete the Filelist Display
+  hHeader.Delete
+  For Count = 0 To HPanel.Length - 1
+    hPanel[Count].Delete
+  Next
+  'Refresh the Filelist Display
+  IsLocked = True
+  PopulateFileList()
+  DisplayDiskData()
+  IsLocked = False
+  HasChanged = True
   
 End

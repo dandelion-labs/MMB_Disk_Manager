@@ -75,6 +75,7 @@ Public Sub FileOpen_Click()
   If HasMMBChanged = True Then
     If Message.Warning("Current MMB as not been saved. Do you want to discard changes ?", "OK", "Cancel") = 2 Then Return
   End If
+  
   Dialog.Title = "Choose a file"
   Dialog.Filter = ["*.MMB", "BBC File Archive"]
   Dialog.Path = "."
@@ -87,6 +88,8 @@ Public Sub FileOpen_Click()
   Global.CurrentFile = Dialog.Path
   FStream = Open Global.CurrentFile For Input
   'TODO Need to verify valid file format
+  
+  'TODO Close any open child windows
   
   'Read boot data
   For count = 0 To 15
