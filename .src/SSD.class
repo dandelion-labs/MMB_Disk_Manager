@@ -219,7 +219,7 @@ End
 
 Public Sub SetTitle(FileNumber As Integer, Title As String)
   'Title is set from MMB editor window
-
+  
 End
 
 Public Function GetNumFiles() As Integer
@@ -322,7 +322,7 @@ Public Function ImportFile(SSDNumber As Integer, FilePath As String) As Integer
   AttData = 0
   'Parse filename
   DirFile = Split(File.Name(FilePath), ".") 'Split the filename
-  Print DirFile.Length
+  'Print DirFile.Length
   If DirFile.Length = 2 Then 'There should be two elements (dir & filename)
     If Len(DirFile[0]) = 1 And Len(DirFile[1]) < 8 Then 'The Directory should be 1 character Filename should be less than 8 characters -BBC style filename
       DirName = DirFile[0]
@@ -350,6 +350,13 @@ Public Function ImportFile(SSDNumber As Integer, FilePath As String) As Integer
     DirName = "$"
     FileName = Left$(File.Name(FilePath), 7)
   Endif
+  'Check for invalid file name
+  If InStr(FileName, ":") Or InStr(Filename, ".") Or InStr(Filename, "#") Or InStr(Filename, "*") Then Return 2 'Invalid filename
+  
+  'Check for duplicate filenames
+  For count = 0 To GetNumFiles()
+    If (Trim$(DirName & FileName)) = (Trim$(GetDirectory(count) & GetFileName(count))) Then Return 1 'Duplicate Filename
+  Next
   
   With Stat(FilePath)
     FileSize = .Size

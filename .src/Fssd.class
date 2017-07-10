@@ -378,7 +378,7 @@ End
 
 Public Sub MenuImport_Click()
   
-  Dim FileSize, Count As Integer
+  Dim FileSize, Count, ErrCode As Integer
   Dim FileName As String
   
   'Get file details
@@ -402,7 +402,12 @@ Public Sub MenuImport_Click()
     Return
   Endif
   'Import 
-  If SSD.ImportFile(CurrentSSD, FileName) Then 
+  ErrCode = SSD.ImportFile(CurrentSSD, FileName)
+  If ErrCode = 1 Then 
+    Message.Error("Duplicate File Name")
+    Return
+  End If
+  If ErrCode = 2 Then 
     Message.Error("Invalid File Name")
     Return
   End If

@@ -3,7 +3,7 @@
 Title=MMB Disk Manager
 Startup=FMain
 Icon=floppy.png
-Version=0.0.30
+Version=0.0.32
 Component=gb.image
 Component=gb.qt4
 Component=gb.form
