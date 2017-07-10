@@ -1,0 +1,429 @@
+' Gambas class file
+
+Public Struct SFileName
+  Fname[7] As Byte
+  Directory As Byte
+End Struct
+
+Public Struct SFileDetails
+  LoadLo As Byte
+  LoadMid As Byte 
+  ExeLo As Byte
+  ExeMid As Byte
+  SizeLo As Byte
+  SizeMid As Byte
+  BitsHi As Byte
+  Sector As Byte
+End Struct
+
+Public Struct SDirectory
+  DName1[8] As Byte
+  SFileName[31] As SFileName
+  DName2[4] As Byte
+  WCycle As Byte
+  NFiles As Byte
+  Opt_SectorHi As Byte
+  SectorLo As Byte
+  SFileDetails[31] As SFileDetails
+End Struct
+
+Public Struct Sector
+  Data[256] As Byte
+End Struct
+
+Private Dir_Data As SDirectory
+'Private MaxFiles As Integer = 31
+
+Public Sub LoadDirectory(SSDNumber As Integer)
+  
+  Dim hFile As Stream
+  
+  hFile = Open Global.TMPFile For Read
+  Seek #hFile, (SSDNumber * Global.SSDSize) + Global.SSDOffset
+  Dir_Data = Read #hFile As SDirectory
+  Close #hFile
+  
+End
+
+Public Sub SaveDirectory(SSDNumber As Integer)
+  
+  Dim hFile As Stream
+  
+  hFile = Open Global.TMPFile For Write
+  Seek #hFile, (SSDNumber * Global.SSDSize) + Global.SSDOffset
+  Write #hFile, Dir_Data As SDirectory
+  Close #hFile
+  
+End
+
+Public Function BytesToString(bArray As Byte[], bLength As Integer) As String
+  
+  Dim OutString As String
+  Dim Count As Integer
+  
+  For count = 0 To bLength - 1
+    OutString = OutString & Chr$(bArray[Count])
+  Next
+  Return OutString
+  
+End
+
+Public Function GetDirectory(FileNumber As Integer) As String
+  
+  Return Chr$(Dir_Data.SFileName[FileNumber].Directory And &7F) 'Mask off MSB (used as Read Only Flag) 
+  
+End
+
+Public Sub SetDirectory(FileNumber As Integer, Directory As String)
+  'Replace illegal chars
+  
+  Directory = Replace$(Directory, ":", "_")
+  Directory = Replace$(Directory, ".", "_")
+  Directory = Replace$(Directory, "#", "_")
+  Directory = Replace$(Directory, "*", "_")
+  Dir_Data.SFileName[FileNumber].Directory = Dir_Data.SFileName[FileNumber].Directory And &80 'Clear lower 7 bits - MSB is Read Only Flag
+  Dir_Data.SFileName[FileNumber].Directory = Dir_Data.SFileName[FileNumber].Directory Or (Asc(Directory) And &7f) 
+  
+End
+
+Public Function GetFileName(FileNumber As Integer) As String
+  
+  Return BytesToString(Dir_Data.SFileName[FileNumber].Fname, 7)
+  
+End
+
+Public Sub SetFileName(FileNumber As Integer, FileName As String)
+  
+  Dim Count As Integer
+  
+  FileName = Trim$(FileName)
+  'Replace illegal chars
+  FileName = Replace$(FileName, ":", "_")
+  FileName = Replace$(FileName, ".", "_")
+  FileName = Replace$(FileName, "#", "_")
+  FileName = Replace$(FileName, "*", "_")
+  For Count = 0 To 6
+    Dir_Data.SFileName[FileNumber].Fname[Count] = Asc(" ") 'Blank Pad FileName"
+  Next
+  For Count = 0 To Len(FileName) - 1
+    Dir_Data.SFileName[FileNumber].Fname[Count] = Asc(FileName, Count + 1)
+  Next
+  
+End
+
+Public Function GetAtt(FileNumber As Integer) As String
+  
+  Dim AttText As String
+  
+  AttText = ""
+  If (Dir_Data.SFileName[FileNumber].Directory And &80) = &80 Then AttText = "L" 'High bit Read Only Flag
+  Return AttText
+  
+End
+
+Public Sub SetAtt(FileNumber As Integer)
+  'Toggle Att Bit
+  
+  If (Dir_Data.SFileName[FileNumber].Directory And &80) = &80 Then
+    Dir_Data.SFileName[FileNumber].Directory = BClr(Dir_Data.SFileName[FileNumber].Directory, 7)
+  Else
+    Dir_Data.SFileName[FileNumber].Directory = BSet(Dir_Data.SFileName[FileNumber].Directory, 7)
+  Endif  
+  
+End
+
+Public Function GetLoad(FileNumber As Integer) As Integer
+  
+  Dim Addr As Integer
+  
+  If (Lsr(Dir_Data.SFileDetails[FileNumber].BitsHi, 2) And &03) Then Addr = Addr + &FF0000 ' if MSBs >0 then display as FF
+  Addr = Addr + Dir_Data.SFileDetails[FileNumber].LoadMid * 256
+  Addr = Addr + Dir_Data.SFileDetails[FileNumber].LoadLo
+  Return Addr
+  
+End
+
+Public Sub SetLoad(FileNumber As Integer, Value As Integer)
+  
+  Dir_Data.SFileDetails[FileNumber].BitsHi = Dir_Data.SFileDetails[FileNumber].BitsHi And &F3 'Clear bits 2,3
+  If (Value And &FF0000) Then Dir_Data.SFileDetails[FileNumber].BitsHi = Dir_Data.SFileDetails[FileNumber].BitsHi Or &C 'Set bits 2,3
+  Dir_Data.SFileDetails[FileNumber].LoadMid = Lsr(Value, 8) And &FF
+  Dir_Data.SFileDetails[FileNumber].LoadLo = Value And &FF
+  
+End
+
+Public Function GetExec(FileNumber As Integer) As Integer
+  
+  Dim Addr As Integer
+  
+  If (Lsr(Dir_Data.SFileDetails[FileNumber].BitsHi, 6) And &03) Then Addr = Addr + &FF0000 ' if MSBs >0 then display as FF
+  Addr = Addr + Dir_Data.SFileDetails[FileNumber].ExeMid * 256
+  Addr = Addr + Dir_Data.SFileDetails[FileNumber].ExeLo
+  Return Addr
+  
+End
+
+Public Sub SetExec(FileNumber As Integer, Value As Integer)
+  
+  Dir_Data.SFileDetails[FileNumber].BitsHi = Dir_Data.SFileDetails[FileNumber].BitsHi And &3F 'Clear bits 6,7
+  If (Value And &FF0000) Then Dir_Data.SFileDetails[FileNumber].BitsHi = Dir_Data.SFileDetails[FileNumber].BitsHi Or &C0 'Set bits 6,7
+  Dir_Data.SFileDetails[FileNumber].ExeMid = Lsr(Value, 8) And &FF
+  Dir_Data.SFileDetails[FileNumber].ExeLo = Value And &FF  
+  
+End
+
+Public Function GetSize(FileNumber As Integer) As Integer
+  
+  Dim Addr As Integer
+  
+  Addr = (Lsr(Dir_Data.SFileDetails[FileNumber].BitsHi, 4) And &03) * 65536
+  Addr = Addr + Dir_Data.SFileDetails[FileNumber].SizeMid * 256
+  Addr = Addr + Dir_Data.SFileDetails[FileNumber].SizeLo
+  Return Addr
+  
+End
+
+Public Sub SetSize(FileNumber As Integer, Value As Integer)
+  
+  Dir_Data.SFileDetails[FileNumber].BitsHi = Dir_Data.SFileDetails[FileNumber].BitsHi And &CF 'Clear bits 4,5
+  Dir_Data.SFileDetails[FileNumber].BitsHi = Dir_Data.SFileDetails[FileNumber].BitsHi Or ((Value Div 4096) And &30)
+  Dir_Data.SFileDetails[FileNumber].SizeMid = Lsr(Value, 8) And &FF
+  Dir_Data.SFileDetails[FileNumber].SizeLo = Value And &FF
+  
+End
+
+Public Function GetSector(FileNumber As Integer) As Integer
+  
+  Dim Addr As Integer
+  
+  Addr = Addr + (Dir_Data.SFileDetails[FileNumber].BitsHi And &03) * 256
+  Addr = Addr + Dir_Data.SFileDetails[FileNumber].Sector
+  If Addr = 0 Then Addr = 2  'No files then first free file sector is 2
+  Return Addr
+  
+End
+
+Public Sub SetSector(FileNumber As Integer, Value As Integer)
+  
+  Dir_Data.SFileDetails[FileNumber].BitsHi = Dir_Data.SFileDetails[FileNumber].BitsHi And &FC 'Clear bits 0,1
+  Dir_Data.SFileDetails[FileNumber].BitsHi = Dir_Data.SFileDetails[FileNumber].BitsHi Or ((Value Div 256) And &03)
+  Dir_Data.SFileDetails[FileNumber].Sector = Value And &FF
+  
+End
+
+Public Function GetTitle() As String
+  
+  Return BytesToString(Dir_Data.DName1, 8) & BytesToString(Dir_Data.DName2, 4)
+  
+End
+
+Public Sub SetTitle(FileNumber As Integer, Title As String)
+  'Title is set from MMB editor window
+  
+End
+
+Public Function GetNumFiles() As Integer
+  
+  Return Dir_Data.NFiles / 8
+  
+End
+
+Public Function GetTotalSize() As Integer
+  
+  Dim Count, TotalSize As Integer
+  
+  TotalSize = 512 'Directory Sectors
+  For Count = 0 To GetNumFiles() - 1
+    TotalSize = TotalSize + FSizeToSectors(GetSize(Count)) * 256
+  Next
+  Return TotalSize
+  
+End
+
+Public Sub SetNumFiles(Files As Integer)
+  
+  Dir_Data.NFiles = Files * 8
+  
+End
+
+Public Function GetBootOpt() As Integer
+  
+  Return Lsr(Dir_Data.Opt_SectorHi, 4) And &03
+  
+End
+
+Public Function SetBootOpt(BootOpt As Integer)
+  
+  Dir_Data.Opt_SectorHi = Dir_Data.Opt_SectorHi And &CF 'Clear bits 4,5
+  Dir_Data.Opt_SectorHi = Dir_Data.Opt_SectorHi Or (Lsl(BootOpt And &03, 4)) 'Write new bits 4,5
+  
+End
+
+Public Function FSizeToSectors(Size As Integer) As Integer
+  'Round-up to nearest multiple of 256
+  
+  If (Size % 256) Then Size = Size + 256
+  Return (Size Div 256) 
+  
+End
+
+Public Sub DeleteFile(FileNumber As Integer)
+  
+  Dim Count As Integer
+  Dim NumFiles As Integer
+  'TODO Zero File Data
+  NumFiles = GetNumFiles()
+  For Count = FileNumber To NumFiles - 1
+    Dir_Data.SFileName[Count] = Dir_Data.SFileName[Count + 1]
+    Dir_Data.SFileDetails[Count] = Dir_Data.SFileDetails[Count + 1]
+  Next
+  Dir_Data.SFileName[NumFiles] = New SFileName
+  Dir_Data.SFileDetails[NumFiles] = New SFileDetails
+  SetNumFiles(NumFiles - 1)
+  
+End
+
+Public Sub ExportFile(SSDNumber As Integer, FileNumber As Integer, FilePath As String)
+  
+  Dim hFile, hFileRead As Stream
+  Dim Count As Integer
+  
+  Try Kill FilePath & ".INF"
+  Try Kill FilePath
+  'Save .INF File
+  hFile = Open FilePath & ".INF" For Create
+  Print #hFile, GetDirectory(FileNumber) & "." & GetFileName(FileNumber) & "  ";
+  Print #hFile, Hex$(GetLoad(FileNumber), 6) & " ";
+  Print #hFile, Hex$(GetExec(FileNumber), 6) & " ";
+  Print #hFile, Hex$(GetSize(FileNumber), 6) & " ";
+  If GetAtt(FileNumber) = "L" Then Print #hFile, "L";
+  Close #hFile
+  'Save Data
+  hFileRead = Open Global.TMPFile For Read
+  hFile = Open FilePath For Create
+  Seek #hFileRead, (SSDNumber * Global.SSDSize) + Global.SSDOffset + (GetSector(FileNumber) * 256)
+  For Count = 1 To GetSize(FileNumber)
+    Write #hFile, Read #hFileRead As Byte As Byte
+  Next
+  Close #hFile
+  Close hFileRead
+  
+End
+
+Public Function ImportFile(SSDNumber As Integer, FilePath As String) As Integer
+  
+  Dim hFileFrom, hFileTo, hFileInf As Stream
+  Dim FileSize, NextFreeSector, Count, LoadAdd, ExecAdd, AttData As Integer
+  Dim DirFile, InfArray As String[]
+  Dim DirName, FileName, InfData As String
+  
+  LoadAdd = 0
+  ExecAdd = 0
+  AttData = 0
+  'Parse filename
+  DirFile = Split(File.Name(FilePath), ".") 'Split the filename
+  'Print DirFile.Length
+  If DirFile.Length = 2 Then 'There should be two elements (dir & filename)
+    If Len(DirFile[0]) = 1 And Len(DirFile[1]) < 8 Then 'The Directory should be 1 character Filename should be less than 8 characters -BBC style filename
+      DirName = DirFile[0]
+      FileName = DirFile[1]
+      'Check and read .INF file
+      FilePath = FilePath & ".INF"
+      Try hFileInf = Open FilePath For Input
+      If Error = False Then
+        InfData = Read #hFileInf, Lof(hFileInf)
+        InfArray = Split(InfData, " ", "", True)
+        If InfArray.Length > 3 Then
+          LoadAdd = Val("&" & InfArray[1])
+          ExecAdd = Val("&" & InfArray[2])
+        Endif
+        If InfArray.Length = 5 Then
+          If Left$(InfArray[4], 1) = "L" Then AttData = 1
+        Endif
+      Endif
+      
+    Else 'Not a BBC style filename
+      DirName = "$"
+      FileName = Left$(File.Name(FilePath), 7)
+    Endif
+  Else 'Not a BBC style filename
+    DirName = "$"
+    FileName = Left$(File.Name(FilePath), 7)
+  Endif
+  'Check for invalid file name
+  If InStr(FileName, ":") Or InStr(Filename, ".") Or InStr(Filename, "#") Or InStr(Filename, "*") Then Return 2 'Invalid filename
+  
+  'Check for duplicate filenames
+  For count = 0 To GetNumFiles()
+    If (Trim$(DirName & FileName)) = (Trim$(GetDirectory(count) & GetFileName(count))) Then Return 1 'Duplicate Filename
+  Next
+  
+  With Stat(FilePath)
+    FileSize = .Size
+  End With
+  'Prepare SSD
+  CompactSSD(SSDNumber)
+  'Get next free sector (first file sector + length)
+  NextFreeSector = GetSector(0) + FSizeToSectors(GetSize(0))
+  'Import Data
+  hFileFrom = Open FilePath For Input
+  hFileTo = Open Global.TMPFile For Output
+  Seek #hFileTo, (SSDNumber * Global.SSDSize) + Global.SSDOffset + (NextFreeSector * 256)
+  For Count = 1 To FileSize
+    Write #hFileTo, Read #hFileFrom As Byte As Byte
+  Next
+  Close #hFileTo
+  Close #hFileFrom
+  'Update Catalogue
+  For Count = GetNumFiles() To 1 Step -1
+    Dir_Data.SFileName[Count] = Dir_Data.SFileName[Count - 1]
+    Dir_Data.SFileDetails[Count] = Dir_Data.SFileDetails[Count - 1] 
+  Next
+  Dir_Data.SFileName[0] = New SFileName
+  Dir_Data.SFileDetails[0] = New SFileDetails
+  SetDirectory(0, DirName)
+  SetFileName(0, FileName)
+  If AttData = 1 Then SetAtt(0)
+  SetLoad(0, LoadAdd)
+  SetExec(0, ExecAdd)
+  SetSize(0, FileSize) 
+  SetSector(0, NextFreeSector)
+  SetNumFiles(GetNumFiles() + 1)
+  
+  Return 0
+  
+End
+
+Private Sub MoveSectors(SSDNumber As Integer, SecTo As Integer, SecFrom As Integer, SecLength As Integer)
+  
+  Dim hFileTo, hFileFrom As Stream
+  Dim Count As Integer
+  
+  hFileFrom = Open Global.TMPFile For Input
+  hFileTo = Open Global.TMPFile For Output
+  Seek #hFileFrom, (SSDNumber * Global.SSDSize) + Global.SSDOffset + (SecFrom * 256)
+  Seek #hFileTo, (SSDNumber * Global.SSDSize) + Global.SSDOffset + (SecTo * 256)
+  For Count = 1 To SecLength
+    Write #hFileTo, Read #hFileFrom As Sector As Sector
+  Next
+  Close #hFileTo
+  Close #hFileFrom
+  
+End
+
+Public Sub CompactSSD(SSDNumber As Integer)
+  
+  Dim SecStart As Integer
+  Dim Count As Integer
+  
+  SecStart = 2 'First sector after directory
+  For Count = GetNumFiles() - 1 To 0 Step -1
+    If GetSector(Count) <> SecStart Then
+      MoveSectors(SSDNumber, SecStart, GetSector(Count), FSizeToSectors(GetSize(Count)))
+      SetSector(Count, SecStart)
+    Endif
+    SecStart = SecStart + FSizeToSectors(GetSize(Count)) 
+  Next
+  SaveDirectory(SSDNumber)
+  
+End

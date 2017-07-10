@@ -3,13 +3,21 @@
 Title=MMB Disk Manager
 Startup=FMain
 Icon=floppy.png
+<<<<<<< HEAD
 Version=0.0.9
+=======
+Version=0.0.32
+>>>>>>> ssd_editor
 Component=gb.image
-Component=gb.gui
+Component=gb.qt4
 Component=gb.form
 Environment="GB_GUI=gb.qt4"
 TabSize=2
 Language=en_GB
+<<<<<<< HEAD
+=======
+KeepDebugInfo=0
+>>>>>>> ssd_editor
 Maintainer=Jason Lucas
 Address=spookyconnection@virginmedia.com
 License=General Public License
