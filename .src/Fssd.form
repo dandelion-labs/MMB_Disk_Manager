@@ -51,8 +51,4 @@
     Font = Font["DejaVu Sans,9"]
     Border = Border.Plain
   }
-  { CompactButton Button
-    MoveScaled(3,2,12,5)
-    Text = ("Compact")
-  }
 }

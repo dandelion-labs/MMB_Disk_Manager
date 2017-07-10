@@ -32,7 +32,7 @@ Public Struct Sector
 End Struct
 
 Private Dir_Data As SDirectory
-Private MaxFiles As Integer = 31
+'Private MaxFiles As Integer = 31
 
 Public Sub LoadDirectory(SSDNumber As Integer)
   
@@ -184,8 +184,12 @@ Public Function GetSize(FileNumber As Integer) As Integer
 End
 
 Public Sub SetSize(FileNumber As Integer, Value As Integer)
-  'TODO
-
+  
+  Dir_Data.SFileDetails[FileNumber].BitsHi = Dir_Data.SFileDetails[FileNumber].BitsHi And &CF 'Clear bits 4,5
+  Dir_Data.SFileDetails[FileNumber].BitsHi = Dir_Data.SFileDetails[FileNumber].BitsHi Or ((Value Div 4096) And &30)
+  Dir_Data.SFileDetails[FileNumber].SizeMid = Lsr(Value, 8) And &FF
+  Dir_Data.SFileDetails[FileNumber].SizeLo = Value And &FF
+  
 End
 
 Public Function GetSector(FileNumber As Integer) As Integer
@@ -194,6 +198,7 @@ Public Function GetSector(FileNumber As Integer) As Integer
   
   Addr = Addr + (Dir_Data.SFileDetails[FileNumber].BitsHi And &03) * 256
   Addr = Addr + Dir_Data.SFileDetails[FileNumber].Sector
+  If Addr = 0 Then Addr = 2  'No files then first free file sector is 2
   Return Addr
   
 End
@@ -213,7 +218,8 @@ Public Function GetTitle() As String
 End
 
 Public Sub SetTitle(FileNumber As Integer, Title As String)
-  
+  'Title is set from MMB editor window
+
 End
 
 Public Function GetNumFiles() As Integer
@@ -290,6 +296,7 @@ Public Sub ExportFile(SSDNumber As Integer, FileNumber As Integer, FilePath As S
   Print #hFile, Hex$(GetLoad(FileNumber), 6) & " ";
   Print #hFile, Hex$(GetExec(FileNumber), 6) & " ";
   Print #hFile, Hex$(GetSize(FileNumber), 6) & " ";
+  If GetAtt(FileNumber) = "L" Then Print #hFile, "L";
   Close #hFile
   'Save Data
   hFileRead = Open Global.TMPFile For Read
@@ -305,14 +312,44 @@ End
 
 Public Function ImportFile(SSDNumber As Integer, FilePath As String) As Integer
   
-  Dim hFileFrom, hFileTo As Stream
-  Dim FileSize, NextFreeSector, Count As Integer
-  Dim DirFile As String[]
+  Dim hFileFrom, hFileTo, hFileInf As Stream
+  Dim FileSize, NextFreeSector, Count, LoadAdd, ExecAdd, AttData As Integer
+  Dim DirFile, InfArray As String[]
+  Dim DirName, FileName, InfData As String
   
+  LoadAdd = 0
+  ExecAdd = 0
+  AttData = 0
+  'Parse filename
   DirFile = Split(File.Name(FilePath), ".") 'Split the filename
-  If DirFile.Length <> 2 Then Return 1 'There should be two elements (dir & filename)
-  If Len(DirFile[0]) <> 1 Then Return 1 'The Directory should be 1 character
-  If Len(DirFile[1]) > 7 Then Return 1 'Filename should be less than 8 characters
+  Print DirFile.Length
+  If DirFile.Length = 2 Then 'There should be two elements (dir & filename)
+    If Len(DirFile[0]) = 1 And Len(DirFile[1]) < 8 Then 'The Directory should be 1 character Filename should be less than 8 characters -BBC style filename
+      DirName = DirFile[0]
+      FileName = DirFile[1]
+      'Check and read .INF file
+      FilePath = FilePath & ".INF"
+      Try hFileInf = Open FilePath For Input
+      If Error = False Then
+        InfData = Read #hFileInf, Lof(hFileInf)
+        InfArray = Split(InfData, " ", "", True)
+        If InfArray.Length > 3 Then
+          LoadAdd = Val("&" & InfArray[1])
+          ExecAdd = Val("&" & InfArray[2])
+        Endif
+        If InfArray.Length = 5 Then
+          If Left$(InfArray[4], 1) = "L" Then AttData = 1
+        Endif
+      Endif
+      
+    Else 'Not a BBC style filename
+      DirName = "$"
+      FileName = Left$(File.Name(FilePath), 7)
+    Endif
+  Else 'Not a BBC style filename
+    DirName = "$"
+    FileName = Left$(File.Name(FilePath), 7)
+  Endif
   
   With Stat(FilePath)
     FileSize = .Size
@@ -321,8 +358,6 @@ Public Function ImportFile(SSDNumber As Integer, FilePath As String) As Integer
   CompactSSD(SSDNumber)
   'Get next free sector (first file sector + length)
   NextFreeSector = GetSector(0) + FSizeToSectors(GetSize(0))
-  Print File.Name(FilePath)
-  Print NextFreeSector
   'Import Data
   hFileFrom = Open FilePath For Input
   hFileTo = Open Global.TMPFile For Output
@@ -339,11 +374,12 @@ Public Function ImportFile(SSDNumber As Integer, FilePath As String) As Integer
   Next
   Dir_Data.SFileName[0] = New SFileName
   Dir_Data.SFileDetails[0] = New SFileDetails
-  SetDirectory(0, DirFile[0])
-  SetFileName(0, DirFile[1])
-  SetLoad(0, 0)
-  SetExec(0, 0)
-  SetSize(0, FileSize) 'SetSize() - TODO
+  SetDirectory(0, DirName)
+  SetFileName(0, FileName)
+  If AttData = 1 Then SetAtt(0)
+  SetLoad(0, LoadAdd)
+  SetExec(0, ExecAdd)
+  SetSize(0, FileSize) 
   SetSector(0, NextFreeSector)
   SetNumFiles(GetNumFiles() + 1)
   
@@ -376,8 +412,8 @@ Public Sub CompactSSD(SSDNumber As Integer)
   SecStart = 2 'First sector after directory
   For Count = GetNumFiles() - 1 To 0 Step -1
     If GetSector(Count) <> SecStart Then
-      SetSector(Count, SecStart)
       MoveSectors(SSDNumber, SecStart, GetSector(Count), FSizeToSectors(GetSize(Count)))
+      SetSector(Count, SecStart)
     Endif
     SecStart = SecStart + FSizeToSectors(GetSize(Count)) 
   Next

@@ -319,9 +319,7 @@ End
 
 Public Sub DisplayDiskData()
   
-  Dim Count As Integer
   Dim TotalFiles As Integer
-  Dim FileSize As Integer
   
   TotalFiles = SSD.GetNumFiles()
   'Number of files
@@ -398,7 +396,8 @@ Public Sub MenuImport_Click()
   With Stat(FileName)
     FileSize = .Size
   End With
-  If SSD.GetTotalSize() < FileSize
+  
+  If FileSize > (Global.SSDSize - SSD.GetTotalSize())
     Message.Error("Cannot import file - File too big")
     Return
   Endif
@@ -430,25 +429,5 @@ Public Sub MenuExport_Click()
     Return ' User pressed Cancel -
   Endif
   SSD.ExportFile(CurrentSSD, CurrentFile, Dialog.Path)
-  
-End
-
-Public Sub CompactButton_Click()
-  ' TODO Remove or add to Menu options
-  
-  Dim Count As Integer
-  
-  SSD.CompactSSD(CurrentSSD)
-  'Delete the Filelist Display
-  hHeader.Delete
-  For Count = 0 To HPanel.Length - 1
-    hPanel[Count].Delete
-  Next
-  'Refresh the Filelist Display
-  IsLocked = True
-  PopulateFileList()
-  DisplayDiskData()
-  IsLocked = False
-  HasChanged = True
   
 End

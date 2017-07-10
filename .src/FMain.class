@@ -62,7 +62,6 @@
 Public hPanel As New Panel[511]
 Public BootData As New Byte[16]
 Public IndexData As New Byte[511, 16]
-
 Public CopySSD As Integer 'SSD selected for copy
 Public HasMMBChanged As Boolean
 
@@ -71,6 +70,7 @@ Public Sub FileOpen_Click()
   Dim FStream As Stream
   Dim count As Integer
   Dim count1 As Integer
+  'Dim hWindow As Window
   
   If HasMMBChanged = True Then
     If Message.Warning("Current MMB as not been saved. Do you want to discard changes ?", "OK", "Cancel") = 2 Then Return
@@ -89,8 +89,8 @@ Public Sub FileOpen_Click()
   FStream = Open Global.CurrentFile For Input
   'TODO Need to verify valid file format
   
-  'TODO Close any open child windows
-  
+  'Close any open child windows
+  CloseWindows()
   'Read boot data
   For count = 0 To 15
     bootdata[count] = Read #FStream As Byte
@@ -123,6 +123,7 @@ Public Sub Form_Open()
   Dim BoxCount As Integer
   Dim EndCount As Integer
   
+  Application.MainWindow = Me 'This is the main window
   EndCount = 63
   
   For count = 0 To 7
@@ -162,7 +163,7 @@ Public Sub Form_Open()
         
       End With
       
-      hTextBox = New TextBox(hPanel[BoxCount]) As "TextB"
+      hTextBox = New TextBox(hPanel[BoxCount]) As "Title"
       With hTextBox
         .Width = 120
         .height = 20
@@ -212,10 +213,10 @@ End
 
 Public Sub DisplayBootDisks()
   
-  FMain.SpinBox1.Value = bootdata[4] * 256 + bootdata[0]
-  FMain.SpinBox2.Value = bootdata[5] * 256 + bootdata[1]
-  FMain.SpinBox3.Value = bootdata[6] * 256 + bootdata[2]
-  FMain.SpinBox4.Value = bootdata[7] * 256 + bootdata[3]
+  FMain.Boot0.Value = bootdata[4] * 256 + bootdata[0]
+  FMain.Boot1.Value = bootdata[5] * 256 + bootdata[1]
+  FMain.Boot2.Value = bootdata[6] * 256 + bootdata[2]
+  FMain.Boot3.Value = bootdata[7] * 256 + bootdata[3]
   
 End
 
@@ -231,7 +232,7 @@ Public Function IndexToString(Index As Integer) As String
   
 End  
 
-Public Sub TextB_MouseDown()
+Public Sub Title_MouseDown()
   
   Panel_MouseDown()
   
@@ -409,31 +410,35 @@ Public Sub WriteIndexToTMP()
   
 End
 
-Public Sub SpinBox1_Change()
+Public Sub Boot0_Change()
   
-  BootData[0] = SpinBox1.value % 256
-  BootData[4] = Int(SpinBox1.value / 256)
-  
-End
-
-Public Sub SpinBox2_Change()
-  
-  BootData[1] = SpinBox2.value % 256
-  BootData[5] = Int(SpinBox2.value / 256)
+  BootData[0] = Boot0.value % 256
+  BootData[4] = Int(Boot0.value / 256)
+  HasMMBChanged = True
   
 End
 
-Public Sub SpinBox3_Change()
+Public Sub Boot1_Change()
   
-  BootData[2] = SpinBox3.value % 256
-  BootData[6] = Int(SpinBox3.value / 256)
+  BootData[1] = Boot1.value % 256
+  BootData[5] = Int(Boot1.value / 256)
+  HasMMBChanged = True
   
 End
 
-Public Sub SpinBox4_Change()
+Public Sub Boot2_Change()
   
-  BootData[3] = SpinBox4.value % 256
-  BootData[7] = Int(SpinBox4.value / 256)
+  BootData[2] = Boot2.value % 256
+  BootData[6] = Int(Boot2.value / 256)
+  HasMMBChanged = True
+  
+End
+
+Public Sub Boot3_Change()
+  
+  BootData[3] = Boot3.value % 256
+  BootData[7] = Int(Boot3.value / 256)
+  HasMMBChanged = True
   
 End
 
@@ -448,6 +453,7 @@ Public Sub EditDelete_Click()
   Next
   IndexData[Global.CurrentSSD, 15] = 240 'Set to unformatted
   DisplayIndex(Global.CurrentSSD)
+  HasMMBChanged = True
   
 End
 
@@ -492,6 +498,7 @@ Public Sub FileNew_Click()
   If HasMMBChanged = True Then
     If Message.Warning("Current MMB as not been saved. Do you want to discard changes ?", "OK", "Cancel") = 2 Then Return
   End If
+  CloseWindows()
   For count = 0 To 14 'Reset bootdata
     BootData[count] = 0
   Next
@@ -525,11 +532,10 @@ Public Sub Form_Close()
       Return
     End If
   End If
-  Quit
   
 End
 
-Public Sub TextB_Change()
+Public Sub Title_Change()
   'Edit SSD Title
   
   Dim count As Integer
@@ -557,6 +563,17 @@ Public Sub TextB_Change()
     Write #hFile, IndexData[Index, count] As Byte
   Next
   Close #hFile
+  HasMMBChanged = True
+  
+End
+
+Public Sub SSDEdit_Click()
+  
+  Dim hForm As Fssd
+  
+  hForm = New Fssd
+  hForm.Tag = "Child"
+  hForm.Show()
   
 End
 
@@ -584,6 +601,7 @@ Public Sub SSDFormat_Click()
   Next
   IndexData[Global.CurrentSSD, 15] = 15 'Read/Write
   DisplayIndex(Global.CurrentSSD)
+  HasMMBChanged = True
   
 End
 
@@ -622,11 +640,12 @@ Public Sub MenuAbout_Click()
   
 End
 
-Public Sub SSDEdit_Click()
+Public Sub CloseWindows()
   
-  Dim hForm As Form
+  Dim w As Window
   
-  hForm = New Fssd
-  hForm.Show()
+  For Each w In Windows
+    If w.Name = "Fssd" Then w.Close
+  Next
   
 End
